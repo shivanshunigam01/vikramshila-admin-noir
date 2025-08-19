@@ -10,20 +10,25 @@ export default function Index() {
       <div className="container mx-auto px-4 py-16">
         <div className="text-center space-y-6 max-w-4xl mx-auto">
           <div className="space-y-4">
-            <div className="inline-flex items-center gap-2 bg-primary/10 px-4 py-2 rounded-full text-primary font-medium">
-              <Car className="h-4 w-4" />
-              Vikramshila Automobiles
+            {/* Replaced the inline badge with a centered title block */}
+            <div className="flex flex-col items-center text-center">
+              <span className="text-3xl font-semibold text-white tracking-wide">
+                Vikramshila Automobiles
+              </span>
             </div>
+
             <h1 className="text-4xl md:text-6xl font-bold bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">
-              Driven by Trust,<br />
+              Driven by Trust,
+              <br />
               <span className="text-primary">Delivered with Pride</span>
             </h1>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Your trusted partner for Tata Motors commercial vehicles. Experience excellence 
-              in automotive solutions with our comprehensive range of services.
+              Your trusted partner for Tata Motors commercial vehicles.
+              Experience excellence in automotive solutions with our
+              comprehensive range of services.
             </p>
           </div>
-          
+
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link to="/admin">
               <Button className="vikram-button gap-2 text-lg px-8 py-6">
@@ -31,7 +36,11 @@ export default function Index() {
                 <ArrowRight className="h-5 w-5" />
               </Button>
             </Link>
-            <Button variant="outline" size="lg" className="gap-2 text-lg px-8 py-6">
+            <Button
+              variant="outline"
+              size="lg"
+              className="gap-2 text-lg px-8 py-6"
+            >
               <Phone className="h-5 w-5" />
               Contact Sales
             </Button>
@@ -47,7 +56,8 @@ export default function Index() {
               </div>
               <h3 className="text-xl font-semibold">Premium Vehicles</h3>
               <p className="text-muted-foreground">
-                Wide range of Tata Motors commercial vehicles for all your business needs
+                Wide range of Tata Motors commercial vehicles for all your
+                business needs
               </p>
             </CardContent>
           </Card>
@@ -83,7 +93,8 @@ export default function Index() {
             Ready to Manage Your Business?
           </h2>
           <p className="text-muted-foreground">
-            Access the admin panel to manage products, schemes, enquiries and more.
+            Access the admin panel to manage products, schemes, enquiries and
+            more.
           </p>
           <Link to="/admin">
             <Button className="vikram-button gap-2 text-lg px-8 py-6 mt-6">
