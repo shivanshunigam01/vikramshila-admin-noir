@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "@/hooks/use-toast";
 import { 
   Search, 
   Eye, 
@@ -211,6 +212,12 @@ export default function Enquiries() {
                   size="sm" 
                   className="flex-1 gap-1 vikram-button"
                   disabled={enquiry.status === "converted"}
+                  onClick={() => {
+                    toast({
+                      title: "Customer Contacted",
+                      description: `${enquiry.fullName} has been marked as contacted.`,
+                    });
+                  }}
                 >
                   <Phone className="h-3 w-3" />
                   Contact

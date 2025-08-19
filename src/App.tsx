@@ -9,6 +9,9 @@ import AdminLayout from "./components/AdminLayout";
 import Dashboard from "./pages/admin/Dashboard";
 import Products from "./pages/admin/Products";
 import Schemes from "./pages/admin/Schemes";
+import Testimonials from "./pages/admin/Testimonials";
+import NewLaunches from "./pages/admin/NewLaunches";
+import Services from "./pages/admin/Services";
 import Enquiries from "./pages/admin/Enquiries";
 
 const queryClient = new QueryClient();
@@ -25,9 +28,9 @@ const App = () => (
             <Route index element={<Dashboard />} />
             <Route path="products" element={<Products />} />
             <Route path="schemes" element={<Schemes />} />
-            <Route path="testimonials" element={<div className="p-6">Testimonials - Coming Soon</div>} />
-            <Route path="launches" element={<div className="p-6">New Launches - Coming Soon</div>} />
-            <Route path="services" element={<div className="p-6">Services - Coming Soon</div>} />
+            <Route path="testimonials" element={<Testimonials />} />
+            <Route path="launches" element={<NewLaunches />} />
+            <Route path="services" element={<Services />} />
             <Route path="enquiries" element={<Enquiries />} />
           </Route>
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

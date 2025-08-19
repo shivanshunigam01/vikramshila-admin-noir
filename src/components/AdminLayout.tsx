@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Package,
@@ -14,6 +14,8 @@ import {
   User
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 const navigationItems = [
@@ -28,6 +30,21 @@ const navigationItems = [
 
 export default function AdminLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    // Clear any stored tokens/auth data
+    localStorage.removeItem("authToken");
+    sessionStorage.clear();
+    
+    toast({
+      title: "Logged Out",
+      description: "You have been successfully logged out.",
+    });
+    
+    // Navigate to login page (or home page)
+    navigate("/");
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -62,9 +79,27 @@ export default function AdminLayout() {
             <User className="h-4 w-4" />
             <span className="hidden sm:inline">Admin</span>
           </Button>
-          <Button variant="ghost" size="icon">
-            <LogOut className="h-4 w-4" />
-          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <LogOut className="h-4 w-4" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent className="vikram-card">
+              <AlertDialogHeader>
+                <AlertDialogTitle>Logout Confirmation</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to logout? You will need to login again to access the admin panel.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleLogout} className="vikram-button">
+                  Logout
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </nav>
 

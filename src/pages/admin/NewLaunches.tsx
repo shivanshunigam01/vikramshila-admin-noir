@@ -15,56 +15,46 @@ import {
   Edit, 
   Trash2, 
   Eye, 
-  Gift,
+  Rocket,
   Calendar,
-  IndianRupee,
-  Percent
+  Image,
+  Play
 } from "lucide-react";
 
-const schemes = [
+const launches = [
   {
     id: 1,
-    title: "Festival Discount 2024",
-    description: "Special discounts during festive season",
-    discount: "15%",
-    startDate: "2024-03-01",
-    endDate: "2024-03-31",
-    status: "active",
-    banner: "/placeholder.svg",
+    title: "Tata Ace Gold EX",
+    description: "Enhanced version of the popular Ace Gold with improved features and performance",
+    launchDate: "2024-04-15",
+    status: "upcoming",
+    image: "/placeholder.svg",
+    videoUrl: "https://example.com/video1",
+    createdAt: "2024-01-15",
   },
   {
     id: 2,
-    title: "First Time Buyer Offer",
-    description: "Exclusive offer for first-time commercial vehicle buyers",
-    discount: "₹25,000",
-    startDate: "2024-02-15",
-    endDate: "2024-04-15",
-    status: "active",
-    banner: "/placeholder.svg",
+    title: "Magic Express Plus",
+    description: "Upgraded passenger vehicle with better comfort and safety features",
+    launchDate: "2024-03-20",
+    status: "launched", 
+    image: "/placeholder.svg",
+    videoUrl: "https://example.com/video2",
+    createdAt: "2024-01-10",
   },
   {
     id: 3,
-    title: "Trade-in Bonus",
-    description: "Additional benefits on vehicle exchange",
-    discount: "₹30,000",
-    startDate: "2024-01-01",
-    endDate: "2024-02-28",
-    status: "expired",
-    banner: "/placeholder.svg",
-  },
-  {
-    id: 4,
-    title: "Summer Special",
-    description: "Beat the heat with cool offers",
-    discount: "12%",
-    startDate: "2024-04-01",
-    endDate: "2024-06-30",
+    title: "Yodha 2.0",
+    description: "Next generation pickup truck with advanced technology",
+    launchDate: "2024-05-30",
     status: "upcoming",
-    banner: "/placeholder.svg",
+    image: "/placeholder.svg",
+    videoUrl: null,
+    createdAt: "2024-01-08",
   },
 ];
 
-export default function Schemes() {
+export default function NewLaunches() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -73,43 +63,39 @@ export default function Schemes() {
     defaultValues: {
       title: "",
       description: "",
-      discount: "",
-      startDate: "",
-      endDate: "",
+      launchDate: "",
     },
   });
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "active":
+      case "launched":
         return "bg-green-500/20 text-green-500 border-green-500/30";
       case "upcoming":
         return "bg-blue-500/20 text-blue-500 border-blue-500/30";
-      case "expired":
-        return "bg-red-500/20 text-red-500 border-red-500/30";
       default:
         return "";
     }
   };
 
-  const filteredSchemes = schemes.filter(scheme => {
-    const matchesSearch = scheme.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         scheme.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "all" || scheme.status === statusFilter;
+  const filteredLaunches = launches.filter(launch => {
+    const matchesSearch = launch.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         launch.description.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === "all" || launch.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
   const handleDelete = (id: number, title: string) => {
     toast({
-      title: "Scheme Deleted",
+      title: "Launch Deleted",
       description: `"${title}" has been deleted successfully.`,
     });
   };
 
   const handleSubmit = (data: any) => {
     toast({
-      title: "Scheme Added",
-      description: `New scheme "${data.title}" has been added successfully.`,
+      title: "Launch Added",
+      description: `New launch "${data.title}" has been added successfully.`,
     });
     setIsAddDialogOpen(false);
     form.reset();
@@ -120,23 +106,23 @@ export default function Schemes() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-3">
-            <Gift className="h-8 w-8 text-primary" />
-            Schemes & Offers
+            <Rocket className="h-8 w-8 text-primary" />
+            New Launches
           </h1>
           <p className="text-muted-foreground">
-            Manage promotional schemes and special offers
+            Manage upcoming and recent product launches
           </p>
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
             <Button className="vikram-button gap-2 w-fit">
               <Plus className="h-4 w-4" />
-              Create Scheme
+              Add Launch
             </Button>
           </DialogTrigger>
           <DialogContent className="vikram-card max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Create New Scheme</DialogTitle>
+              <DialogTitle>Add New Launch</DialogTitle>
             </DialogHeader>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
@@ -145,9 +131,9 @@ export default function Schemes() {
                   name="title"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Scheme Title</FormLabel>
+                      <FormLabel>Product Title</FormLabel>
                       <FormControl>
-                        <Input placeholder="Enter scheme title" {...field} />
+                        <Input placeholder="Enter product title" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -160,7 +146,7 @@ export default function Schemes() {
                     <FormItem>
                       <FormLabel>Description</FormLabel>
                       <FormControl>
-                        <Textarea placeholder="Enter scheme description..." {...field} />
+                        <Textarea placeholder="Enter product description..." {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -168,47 +154,19 @@ export default function Schemes() {
                 />
                 <FormField
                   control={form.control}
-                  name="discount"
+                  name="launchDate"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Discount</FormLabel>
+                      <FormLabel>Launch Date</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g., 15% or ₹25,000" {...field} />
+                        <Input type="date" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="startDate"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Start Date</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="endDate"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>End Date</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
                 <div className="flex gap-2">
-                  <Button type="submit" className="vikram-button">Create Scheme</Button>
+                  <Button type="submit" className="vikram-button">Add Launch</Button>
                   <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                     Cancel
                   </Button>
@@ -226,7 +184,7 @@ export default function Schemes() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search schemes..."
+                placeholder="Search launches..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
@@ -238,58 +196,49 @@ export default function Schemes() {
               className="px-3 py-2 rounded-md border bg-input text-sm"
             >
               <option value="all">All Status</option>
-              <option value="active">Active</option>
+              <option value="launched">Launched</option>
               <option value="upcoming">Upcoming</option>
-              <option value="expired">Expired</option>
             </select>
           </div>
         </CardContent>
       </Card>
 
-      {/* Schemes Grid */}
+      {/* Launches Grid */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {filteredSchemes.map((scheme) => (
-          <Card key={scheme.id} className="vikram-card overflow-hidden">
+        {filteredLaunches.map((launch) => (
+          <Card key={launch.id} className="vikram-card overflow-hidden">
             <div className="relative">
               <div className="h-48 bg-muted overflow-hidden">
                 <img
-                  src={scheme.banner}
-                  alt={scheme.title}
+                  src={launch.image}
+                  alt={launch.title}
                   className="w-full h-full object-cover"
                 />
+                {launch.videoUrl && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                    <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
+                      <Play className="h-6 w-6 text-white ml-1" />
+                    </div>
+                  </div>
+                )}
               </div>
               <Badge 
-                className={`absolute top-3 right-3 ${getStatusColor(scheme.status)}`}
+                className={`absolute top-3 right-3 ${getStatusColor(launch.status)}`}
               >
-                {scheme.status}
+                {launch.status}
               </Badge>
             </div>
             <CardHeader>
               <CardTitle className="flex items-start justify-between">
-                <span>{scheme.title}</span>
-                <div className="flex items-center gap-1 text-primary">
-                  {scheme.discount.includes('%') ? (
-                    <Percent className="h-4 w-4" />
-                  ) : (
-                    <IndianRupee className="h-4 w-4" />
-                  )}
-                  <span className="text-lg font-bold">{scheme.discount}</span>
-                </div>
+                <span>{launch.title}</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-muted-foreground text-sm">{scheme.description}</p>
+              <p className="text-muted-foreground text-sm">{launch.description}</p>
               
-              <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                <div className="flex items-center gap-1">
-                  <Calendar className="h-3 w-3" />
-                  <span>{new Date(scheme.startDate).toLocaleDateString("en-IN")}</span>
-                </div>
-                <span>-</span>
-                <div className="flex items-center gap-1">
-                  <Calendar className="h-3 w-3" />
-                  <span>{new Date(scheme.endDate).toLocaleDateString("en-IN")}</span>
-                </div>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Calendar className="h-3 w-3" />
+                <span>Launch: {new Date(launch.launchDate).toLocaleDateString("en-IN")}</span>
               </div>
 
               <div className="flex gap-2">
@@ -309,16 +258,16 @@ export default function Schemes() {
                   </AlertDialogTrigger>
                   <AlertDialogContent className="vikram-card">
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Delete Scheme</AlertDialogTitle>
+                      <AlertDialogTitle>Delete Launch</AlertDialogTitle>
                       <AlertDialogDescription>
-                        Are you sure you want to delete "{scheme.title}"? 
+                        Are you sure you want to delete "{launch.title}"? 
                         This action cannot be undone.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel>Cancel</AlertDialogCancel>
                       <AlertDialogAction 
-                        onClick={() => handleDelete(scheme.id, scheme.title)}
+                        onClick={() => handleDelete(launch.id, launch.title)}
                         className="bg-red-600 hover:bg-red-700"
                       >
                         Delete
@@ -332,11 +281,11 @@ export default function Schemes() {
         ))}
       </div>
 
-      {filteredSchemes.length === 0 && (
+      {filteredLaunches.length === 0 && (
         <Card className="vikram-card">
           <CardContent className="py-12 text-center">
-            <Gift className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <p className="text-muted-foreground">No schemes found matching your criteria.</p>
+            <Rocket className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground">No launches found matching your criteria.</p>
           </CardContent>
         </Card>
       )}

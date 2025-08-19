@@ -1,4 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useNavigate } from "react-router-dom";
 import { Package, Gift, Users, Mail, TrendingUp, Eye, Calendar, Star } from "lucide-react";
 
 const statsCards = [
@@ -40,6 +41,7 @@ const recentActivity = [
 ];
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -118,7 +120,10 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="grid gap-3">
-              <button className="vikram-button text-primary-foreground p-4 rounded-lg text-left transition-all hover:scale-105">
+              <button 
+                onClick={() => navigate("/admin/products")}
+                className="vikram-button text-primary-foreground p-4 rounded-lg text-left transition-all hover:scale-105"
+              >
                 <div className="flex items-center gap-3">
                   <Package className="h-5 w-5" />
                   <div>
@@ -127,7 +132,10 @@ export default function Dashboard() {
                   </div>
                 </div>
               </button>
-              <button className="vikram-button text-primary-foreground p-4 rounded-lg text-left transition-all hover:scale-105">
+              <button 
+                onClick={() => navigate("/admin/schemes")}
+                className="vikram-button text-primary-foreground p-4 rounded-lg text-left transition-all hover:scale-105"
+              >
                 <div className="flex items-center gap-3">
                   <Gift className="h-5 w-5" />
                   <div>
@@ -136,7 +144,10 @@ export default function Dashboard() {
                   </div>
                 </div>
               </button>
-              <button className="vikram-button text-primary-foreground p-4 rounded-lg text-left transition-all hover:scale-105">
+              <button 
+                onClick={() => navigate("/admin/enquiries")}
+                className="vikram-button text-primary-foreground p-4 rounded-lg text-left transition-all hover:scale-105"
+              >
                 <div className="flex items-center gap-3">
                   <Mail className="h-5 w-5" />
                   <div>
