@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useNavigate } from "react-router-dom";
 import { Package, Gift, Users, Mail, TrendingUp, Eye, Calendar, Star } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const statsCards = [
   {
@@ -42,6 +44,8 @@ const recentActivity = [
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const [timeFilter, setTimeFilter] = useState("week");
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -62,6 +66,22 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Analytics Section */}
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold">Analytics Overview</h2>
+        <Select value={timeFilter} onValueChange={setTimeFilter}>
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="Select period" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="week">This Week</SelectItem>
+            <SelectItem value="month">This Month</SelectItem>
+            <SelectItem value="quarter">This Quarter</SelectItem>
+            <SelectItem value="year">This Year</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {statsCards.map((card) => (
@@ -76,7 +96,7 @@ export default function Dashboard() {
                 <TrendingUp className={`h-3 w-3 ${
                   card.changeType === 'positive' ? 'text-green-500' : 'text-gray-500'
                 }`} />
-                {card.change} from last month
+                {card.change} from last {timeFilter}
               </p>
             </CardContent>
           </Card>
