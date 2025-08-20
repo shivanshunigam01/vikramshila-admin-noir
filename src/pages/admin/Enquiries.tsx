@@ -65,8 +65,8 @@ const enquiries = [
 
 export default function Enquiries() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   const getStatusColor = (status: string) => {
     switch (status) {

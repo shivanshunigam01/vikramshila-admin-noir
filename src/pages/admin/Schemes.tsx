@@ -76,6 +76,7 @@ export default function Schemes() {
       discount: "",
       startDate: "",
       endDate: "",
+      banner: null,
     },
   });
 
@@ -207,6 +208,24 @@ export default function Schemes() {
                     )}
                   />
                 </div>
+                <FormField
+                  control={form.control}
+                  name="banner"
+                  render={({ field: { onChange, value, ...field } }) => (
+                    <FormItem>
+                      <FormLabel>Banner Image</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => onChange(e.target.files?.[0] || null)}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 <div className="flex gap-2">
                   <Button type="submit" className="vikram-button">Create Scheme</Button>
                   <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>

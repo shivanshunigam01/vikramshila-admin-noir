@@ -1,9 +1,34 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowRight, Car, Users, Award, Phone } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import LoginForm from "@/components/LoginForm";
 
 export default function Index() {
+  const [showLogin, setShowLogin] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const token = localStorage.getItem("admin_token");
+    setIsLoggedIn(!!token);
+  }, []);
+
+  const handleAdminClick = () => {
+    if (isLoggedIn) {
+      navigate("/admin");
+    } else {
+      setShowLogin(true);
+    }
+  };
+
+  const handleLogin = () => {
+    setIsLoggedIn(true);
+    setShowLogin(false);
+    navigate("/admin");
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted">
       {/* Hero Section */}
@@ -25,12 +50,13 @@ export default function Index() {
           </div>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link to="/admin">
-              <Button className="vikram-button gap-2 text-lg px-8 py-6">
-                Admin Panel
-                <ArrowRight className="h-5 w-5" />
-              </Button>
-            </Link>
+            <Button 
+              onClick={handleAdminClick}
+              className="vikram-button gap-2 text-lg px-8 py-6"
+            >
+              {isLoggedIn ? "Go to Admin Panel" : "Admin Login"}
+              <ArrowRight className="h-5 w-5" />
+            </Button>
             <Button variant="outline" size="lg" className="gap-2 text-lg px-8 py-6">
               <Phone className="h-5 w-5" />
               Contact Sales
@@ -85,14 +111,22 @@ export default function Index() {
           <p className="text-muted-foreground">
             Access the admin panel to manage products, schemes, enquiries and more.
           </p>
-          <Link to="/admin">
-            <Button className="vikram-button gap-2 text-lg px-8 py-6 mt-6">
-              Go to Admin Panel
-              <ArrowRight className="h-5 w-5" />
-            </Button>
-          </Link>
+          <Button 
+            onClick={handleAdminClick}
+            className="vikram-button gap-2 text-lg px-8 py-6 mt-6"
+          >
+            {isLoggedIn ? "Go to Admin Panel" : "Admin Login"}
+            <ArrowRight className="h-5 w-5" />
+          </Button>
         </div>
       </div>
+      
+      {showLogin && (
+        <LoginForm 
+          onLogin={handleLogin}
+          onCancel={() => setShowLogin(false)}
+        />
+      )}
     </div>
   );
 }

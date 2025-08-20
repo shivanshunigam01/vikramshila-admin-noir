@@ -70,6 +70,8 @@ export default function Products() {
       category: "SCV Cargo",
       price: "",
       description: "",
+      image: null,
+      brochure: null,
     },
   });
 
@@ -172,6 +174,42 @@ export default function Products() {
                       <FormLabel>Description</FormLabel>
                       <FormControl>
                         <Textarea placeholder="Enter product description..." {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="image"
+                  render={({ field: { onChange, value, ...field } }) => (
+                    <FormItem>
+                      <FormLabel>Product Image</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => onChange(e.target.files?.[0] || null)}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="brochure"
+                  render={({ field: { onChange, value, ...field } }) => (
+                    <FormItem>
+                      <FormLabel>Product Brochure (PDF)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="file"
+                          accept=".pdf"
+                          onChange={(e) => onChange(e.target.files?.[0] || null)}
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
