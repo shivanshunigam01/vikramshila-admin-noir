@@ -48,6 +48,7 @@ export default function LoginForm({ onLogin, onCancel }: LoginFormProps) {
         });
 
         onLogin(); // ✅ parent decides where to go
+        setIsLoading(false);
       }
     } catch (err: any) {
       if (err) {
@@ -57,6 +58,7 @@ export default function LoginForm({ onLogin, onCancel }: LoginFormProps) {
             err.response?.data?.message || "Invalid username or password",
           variant: "destructive",
         });
+        setIsLoading(false);
       } else {
         toast({
           title: "Error",
@@ -65,6 +67,7 @@ export default function LoginForm({ onLogin, onCancel }: LoginFormProps) {
             "Something went wrong. Please try again.",
           variant: "destructive",
         });
+        setIsLoading(false);
       }
     }
   };
@@ -155,7 +158,7 @@ export default function LoginForm({ onLogin, onCancel }: LoginFormProps) {
             </div>
           </form>
 
-          <div className="mt-6 p-3 bg-muted/20 rounded-lg">
+          {/* <div className="mt-6 p-3 bg-muted/20 rounded-lg">
             <p className="text-xs text-muted-foreground text-center">
               Demo Credentials:
               <br />
@@ -163,7 +166,7 @@ export default function LoginForm({ onLogin, onCancel }: LoginFormProps) {
               <br />
               Password: <span className="font-mono">admin123</span>
             </p>
-          </div>
+          </div> */}
         </CardContent>
       </Card>
     </div>
