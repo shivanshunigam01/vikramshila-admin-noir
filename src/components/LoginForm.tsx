@@ -1,10 +1,12 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom"; // ✅ add this
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff, User, Lock } from "lucide-react";
+import { login } from "@/services/loginService";
 
 interface LoginFormProps {
   onLogin: () => void;
@@ -14,39 +16,57 @@ interface LoginFormProps {
 export default function LoginForm({ onLogin, onCancel }: LoginFormProps) {
   const [formData, setFormData] = useState({
     username: "",
-    password: ""
+    password: "",
   });
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const navigate = useNavigate(); // ✅ hook for navigation
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    // Mock authentication - replace with real API call
-    setTimeout(() => {
-      if (formData.username === "admin" && formData.password === "admin123") {
-        localStorage.setItem("admin_token", "mock_jwt_token");
-        localStorage.setItem("admin_user", JSON.stringify({
-          id: 1,
-          username: formData.username,
-          role: "admin"
-        }));
+    debugger;
+    try {
+      const response = await login({
+        email: formData.username,
+        password: formData.password,
+      });
+
+      // ✅ if login is successful
+      if (response?.data?.token) {
+        localStorage.setItem("admin_token", response?.data?.token);
+        localStorage.setItem(
+          "admin_user",
+          JSON.stringify(response?.data?.user)
+        );
+
         toast({
           title: "Login Successful",
-          description: "Welcome to Vikramshila Admin Panel",
+          description: `Welcome ${response.data.user.name}`,
         });
-        onLogin();
-      } else {
+
+        onLogin(); // ✅ parent decides where to go
+      }
+    } catch (err: any) {
+      if (err) {
         toast({
           title: "Login Failed",
-          description: "Invalid username or password",
-          variant: "destructive"
+          description:
+            err.response?.data?.message || "Invalid username or password",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description:
+            err.response?.data?.message ||
+            "Something went wrong. Please try again.",
+          variant: "destructive",
         });
       }
-      setIsLoading(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -67,11 +87,13 @@ export default function LoginForm({ onLogin, onCancel }: LoginFormProps) {
                 type="text"
                 placeholder="Enter your username"
                 value={formData.username}
-                onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value }))}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, username: e.target.value }))
+                }
                 required
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <div className="relative">
@@ -80,7 +102,12 @@ export default function LoginForm({ onLogin, onCancel }: LoginFormProps) {
                   type={showPassword ? "text" : "password"}
                   placeholder="Enter your password"
                   value={formData.password}
-                  onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      password: e.target.value,
+                    }))
+                  }
                   required
                 />
                 <Button
@@ -127,11 +154,13 @@ export default function LoginForm({ onLogin, onCancel }: LoginFormProps) {
               </Button>
             </div>
           </form>
-          
+
           <div className="mt-6 p-3 bg-muted/20 rounded-lg">
             <p className="text-xs text-muted-foreground text-center">
-              Demo Credentials:<br />
-              Username: <span className="font-mono">admin</span><br />
+              Demo Credentials:
+              <br />
+              Username: <span className="font-mono">admin</span>
+              <br />
               Password: <span className="font-mono">admin123</span>
             </p>
           </div>

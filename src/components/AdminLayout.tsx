@@ -11,10 +11,20 @@ import {
   Menu,
   X,
   LogOut,
-  User
+  User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -34,14 +44,14 @@ export default function AdminLayout() {
 
   const handleLogout = () => {
     // Clear any stored tokens/auth data
-    localStorage.removeItem("authToken");
+    localStorage.removeItem("admin_token");
     sessionStorage.clear();
-    
+
     toast({
       title: "Logged Out",
       description: "You have been successfully logged out.",
     });
-    
+
     // Navigate to login page (or home page)
     navigate("/");
   };
@@ -58,13 +68,19 @@ export default function AdminLayout() {
             className="lg:hidden"
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
           >
-            {isSidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            {isSidebarOpen ? (
+              <X className="h-5 w-5" />
+            ) : (
+              <Menu className="h-5 w-5" />
+            )}
           </Button>
 
           {/* Logo */}
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-sm">VA</span>
+              <span className="text-primary-foreground font-bold text-sm">
+                VA
+              </span>
             </div>
             <div className="hidden sm:block">
               <h1 className="text-lg font-semibold">Vikramshila Automobiles</h1>
@@ -89,12 +105,16 @@ export default function AdminLayout() {
               <AlertDialogHeader>
                 <AlertDialogTitle>Logout Confirmation</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Are you sure you want to logout? You will need to login again to access the admin panel.
+                  Are you sure you want to logout? You will need to login again
+                  to access the admin panel.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleLogout} className="vikram-button">
+                <AlertDialogAction
+                  onClick={handleLogout}
+                  className="vikram-button"
+                >
                   Logout
                 </AlertDialogAction>
               </AlertDialogFooter>
