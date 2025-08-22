@@ -97,7 +97,7 @@ export default function Products() {
   };
 
   // Helper function to get image URL
-  debugger;
+  // debugger;
   const getImageUrl = (products: any) => {
     if (products.images && products.images.length > 0) {
       // You might need to adjust this based on your server setup

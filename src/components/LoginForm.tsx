@@ -27,7 +27,7 @@ export default function LoginForm({ onLogin, onCancel }: LoginFormProps) {
     e.preventDefault();
     setIsLoading(true);
 
-    debugger;
+    // debugger;
     try {
       const response = await login({
         email: formData.username,
