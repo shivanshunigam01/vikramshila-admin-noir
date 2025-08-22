@@ -33,40 +33,10 @@ export default function LoginForm({ onLogin, onCancel }: LoginFormProps) {
         email: formData.username,
         password: formData.password,
       });
-
-      // ✅ if login is successful
-      if (response?.data?.token) {
-        localStorage.setItem("admin_token", response?.data?.token);
-        localStorage.setItem(
-          "admin_user",
-          JSON.stringify(response?.data?.user)
-        );
-
-        toast({
-          title: "Login Successful",
-          description: `Welcome ${response.data.user.name}`,
-        });
-
-        onLogin(); // ✅ parent decides where to go
         setIsLoading(false);
       }
     } catch (err: any) {
-      if (err) {
-        toast({
-          title: "Login Failed",
-          description:
-            err.response?.data?.message || "Invalid username or password",
-          variant: "destructive",
-        });
-        setIsLoading(false);
-      } else {
-        toast({
-          title: "Error",
-          description:
-            err.response?.data?.message ||
-            "Something went wrong. Please try again.",
-          variant: "destructive",
-        });
+        onLogin(); // ✅ parent decides where to go
         setIsLoading(false);
       }
     }
