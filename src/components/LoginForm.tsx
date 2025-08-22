@@ -1,12 +1,11 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom"; // ✅ add this
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff, User, Lock } from "lucide-react";
-import { login } from "@/services/loginService";
 
 interface LoginFormProps {
   onLogin: () => void;
@@ -21,55 +20,28 @@ export default function LoginForm({ onLogin, onCancel }: LoginFormProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
-  const navigate = useNavigate(); // ✅ hook for navigation
+  const navigate = useNavigate();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    debugger;
-    try {
-      const response = await login({
-        email: formData.username,
-        password: formData.password,
+    // ✅ Dummy login success simulation
+    setTimeout(() => {
+      localStorage.setItem("admin_token", "dummy_token");
+      localStorage.setItem(
+        "admin_user",
+        JSON.stringify({ name: formData.username })
+      );
+
+      toast({
+        title: "Login Successful",
+        description: `Welcome ${formData.username}`,
       });
 
-      // ✅ if login is successful
-      if (response?.data?.token) {
-        localStorage.setItem("admin_token", response?.data?.token);
-        localStorage.setItem(
-          "admin_user",
-          JSON.stringify(response?.data?.user)
-        );
-
-        toast({
-          title: "Login Successful",
-          description: `Welcome ${response.data.user.name}`,
-        });
-
-        onLogin(); // ✅ parent decides where to go
-        setIsLoading(false);
-      }
-    } catch (err: any) {
-      if (err) {
-        toast({
-          title: "Login Failed",
-          description:
-            err.response?.data?.message || "Invalid username or password",
-          variant: "destructive",
-        });
-        setIsLoading(false);
-      } else {
-        toast({
-          title: "Error",
-          description:
-            err.response?.data?.message ||
-            "Something went wrong. Please try again.",
-          variant: "destructive",
-        });
-        setIsLoading(false);
-      }
-    }
+      onLogin();
+      setIsLoading(false);
+    }, 1000);
   };
 
   return (
