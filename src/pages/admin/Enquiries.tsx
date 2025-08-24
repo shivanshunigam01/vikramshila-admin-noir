@@ -1,72 +1,64 @@
-import { useState } from "react";
+"use client";
+
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import { 
-  Search, 
-  Eye, 
-  Phone, 
+import {
+  Search,
+  Eye,
+  Phone,
   MapPin,
   Mail,
   MessageCircle,
   Calendar,
   Filter,
-  ExternalLink
+  ExternalLink,
+  Loader2,
 } from "lucide-react";
-
-const enquiries = [
-  {
-    id: 1,
-    fullName: "Rajesh Kumar",
-    mobile: "+91 98765 43210",
-    state: "Bihar",
-    pincode: "800001",
-    selectedProduct: "Ace Gold Petrol",
-    whatsappConsent: true,
-    createdAt: "2024-03-15T10:30:00",
-    status: "new",
-  },
-  {
-    id: 2,
-    fullName: "Priya Sharma", 
-    mobile: "+91 87654 32109",
-    state: "Jharkhand",
-    pincode: "834001",
-    selectedProduct: "Magic Express",
-    whatsappConsent: false,
-    createdAt: "2024-03-15T08:45:00",
-    status: "contacted",
-  },
-  {
-    id: 3,
-    fullName: "Amit Singh",
-    mobile: "+91 76543 21098", 
-    state: "West Bengal",
-    pincode: "700001",
-    selectedProduct: "Yodha Pickup",
-    whatsappConsent: true,
-    createdAt: "2024-03-14T16:20:00",
-    status: "follow-up",
-  },
-  {
-    id: 4,
-    fullName: "Sunita Devi",
-    mobile: "+91 65432 10987",
-    state: "Odisha", 
-    pincode: "751001",
-    selectedProduct: "Winger Passenger",
-    whatsappConsent: true,
-    createdAt: "2024-03-14T14:10:00",
-    status: "converted",
-  },
-];
+import { getEnquiries } from "@/services/enquiriesService";
 
 export default function Enquiries() {
+  const [enquiries, setEnquiries] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [dateFilter, setDateFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+
+  useEffect(() => {
+    fetchEnquiries();
+  }, []);
+
+  const fetchEnquiries = async () => {
+    setLoading(true);
+    try {
+      const res = await getEnquiries();
+      // API returns { success, message, data }
+      const apiData = Array.isArray(res?.data) ? res.data : [res?.data];
+      // map backend fields to UI-compatible ones
+      const mapped = apiData.map((e: any) => ({
+        id: e._id,
+        fullName: e.fullName,
+        mobileNumber: e.mobileNumber,
+        state: e.state,
+        pincode: e.pincode,
+        product: e.product,
+        whatsappConsent: e.whatsappConsent,
+        status: e.contacted ? "contacted" : "new",
+        createdAt: e.createdAt,
+      }));
+      setEnquiries(mapped);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to fetch enquiries",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -83,12 +75,15 @@ export default function Enquiries() {
     }
   };
 
-  const filteredEnquiries = enquiries.filter(enquiry => {
-    const matchesSearch = enquiry.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         enquiry.mobile.includes(searchTerm) ||
-                         enquiry.selectedProduct.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         enquiry.state.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "all" || enquiry.status === statusFilter;
+  const filteredEnquiries = enquiries.filter((enquiry) => {
+    const matchesSearch =
+      enquiry.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      enquiry.mobileNumber?.includes(searchTerm) ||
+      enquiry.product?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      enquiry.state?.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const matchesStatus =
+      statusFilter === "all" || enquiry.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
@@ -106,10 +101,10 @@ export default function Enquiries() {
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="secondary" className="text-blue-500">
-            {enquiries.filter(e => e.status === "new").length} New
+            {enquiries.filter((e) => e.status === "new").length} New
           </Badge>
           <Badge variant="secondary" className="text-green-500">
-            {enquiries.filter(e => e.status === "converted").length} Converted
+            {enquiries.filter((e) => e.status === "converted").length} Converted
           </Badge>
         </div>
       </div>
@@ -139,7 +134,7 @@ export default function Enquiries() {
                 <option value="follow-up">Follow-up</option>
                 <option value="converted">Converted</option>
               </select>
-              <Button variant="outline" size="icon">
+              <Button variant="outline" size="icon" onClick={fetchEnquiries}>
                 <Filter className="h-4 w-4" />
               </Button>
             </div>
@@ -147,92 +142,107 @@ export default function Enquiries() {
         </CardContent>
       </Card>
 
+      {/* Loader */}
+      {loading && (
+        <div className="flex justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      )}
+
       {/* Enquiries Grid */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        {filteredEnquiries.map((enquiry) => (
-          <Card key={enquiry.id} className="vikram-card">
-            <CardHeader className="pb-4">
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    {enquiry.fullName}
-                    {enquiry.whatsappConsent && (
-                      <MessageCircle className="h-4 w-4 text-green-500" />
-                    )}
-                  </CardTitle>
-                  <p className="text-sm text-muted-foreground">ID: {enquiry.id}</p>
-                </div>
-                <Badge className={getStatusColor(enquiry.status)}>
-                  {enquiry.status}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-3">
-                <div className="flex items-center gap-3">
-                  <Phone className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-mono">{enquiry.mobile}</span>
-                  <Button variant="ghost" size="sm" className="ml-auto gap-1">
-                    <ExternalLink className="h-3 w-3" />
-                    Call
-                  </Button>
-                </div>
-                
-                <div className="flex items-center gap-3">
-                  <MapPin className="h-4 w-4 text-muted-foreground" />
-                  <span>{enquiry.state}, {enquiry.pincode}</span>
-                </div>
-                
-                <div className="flex items-center gap-3">
-                  <Badge variant="outline" className="w-fit">
-                    {enquiry.selectedProduct}
+      {!loading && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {filteredEnquiries.map((enquiry) => (
+            <Card key={enquiry.id} className="vikram-card">
+              <CardHeader className="pb-4">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      {enquiry.fullName}
+                      {enquiry.whatsappConsent && (
+                        <MessageCircle className="h-4 w-4 text-green-500" />
+                      )}
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      ID: {enquiry.id}
+                    </p>
+                  </div>
+                  <Badge className={getStatusColor(enquiry.status)}>
+                    {enquiry.status}
                   </Badge>
                 </div>
-                
-                <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                  <Calendar className="h-3 w-3" />
-                  <span>
-                    {new Date(enquiry.createdAt).toLocaleDateString("en-IN", {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-3">
+                  <div className="flex items-center gap-3">
+                    <Phone className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-mono">{enquiry.mobileNumber}</span>
+                    <Button variant="ghost" size="sm" className="ml-auto gap-1">
+                      <ExternalLink className="h-3 w-3" />
+                      Call
+                    </Button>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                    <span>
+                      {enquiry.state}, {enquiry.pincode}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <Badge variant="outline" className="w-fit">
+                      {enquiry.product}
+                    </Badge>
+                  </div>
+
+                  <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                    <Calendar className="h-3 w-3" />
+                    <span>
+                      {new Date(enquiry.createdAt).toLocaleDateString("en-IN", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  </div>
                 </div>
-              </div>
 
-              <div className="flex gap-2 pt-2">
-                <Button variant="outline" size="sm" className="flex-1 gap-1">
-                  <Eye className="h-3 w-3" />
-                  View Details
-                </Button>
-                <Button 
-                  size="sm" 
-                  className="flex-1 gap-1 vikram-button"
-                  disabled={enquiry.status === "converted"}
-                  onClick={() => {
-                    toast({
-                      title: "Customer Contacted",
-                      description: `${enquiry.fullName} has been marked as contacted.`,
-                    });
-                  }}
-                >
-                  <Phone className="h-3 w-3" />
-                  Contact
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                <div className="flex gap-2 pt-2">
+                  <Button variant="outline" size="sm" className="flex-1 gap-1">
+                    <Eye className="h-3 w-3" />
+                    View Details
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="flex-1 gap-1 vikram-button"
+                    disabled={enquiry.status === "converted"}
+                    onClick={() => {
+                      toast({
+                        title: "Customer Contacted",
+                        description: `${enquiry.fullName} has been marked as contacted.`,
+                      });
+                    }}
+                  >
+                    <Phone className="h-3 w-3" />
+                    Contact
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
-      {filteredEnquiries.length === 0 && (
+      {!loading && filteredEnquiries.length === 0 && (
         <Card className="vikram-card">
           <CardContent className="py-12 text-center">
             <Mail className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <p className="text-muted-foreground">No enquiries found matching your criteria.</p>
+            <p className="text-muted-foreground">
+              No enquiries found matching your criteria.
+            </p>
           </CardContent>
         </Card>
       )}

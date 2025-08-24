@@ -34,8 +34,15 @@ import {
   ChevronLeft,
   ChevronRight,
   FileText,
+  Loader2,
 } from "lucide-react";
-import { getProducts } from "@/services/productService";
+import {
+  getProducts,
+  createProduct,
+  updateProduct,
+  deleteProduct,
+} from "@/services/productService";
+import { Navigate, useNavigate } from "react-router-dom";
 
 export default function Products() {
   const [products, setProducts] = useState([]);
@@ -45,6 +52,9 @@ export default function Products() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false); // loader for add product
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -55,7 +65,9 @@ export default function Products() {
     image: null,
     brochure: null,
   });
-  // Fetch products on mount
+
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
   useEffect(() => {
     const fetchProducts = async () => {
       try {
@@ -71,7 +83,6 @@ export default function Products() {
     fetchProducts();
   }, []);
 
-  // Helper function to get category based on product title/description
   const getProductCategory = (product) => {
     const title = product.title?.toLowerCase() || "";
     const description = product.description?.toLowerCase() || "";
@@ -88,7 +99,6 @@ export default function Products() {
     }
   };
 
-  // Helper function to format price
   const formatPrice = (price) => {
     if (price >= 100000) {
       return `${(price / 100000).toFixed(2)} Lakh`;
@@ -96,17 +106,17 @@ export default function Products() {
     return `${price.toLocaleString()}`;
   };
 
-  // Helper function to get image URL
-  // debugger;
-  const getImageUrl = (products: any) => {
-    if (products.images && products.images.length > 0) {
-      // You might need to adjust this based on your server setup
-      return `/${products.images[0].replace(/\\/g, "/")}`;
+  const getImageUrl = (product) => {
+    if (!product.images || product.images.length === 0) {
+      return "/placeholder.svg";
     }
-    return "/placeholder.svg";
+
+    const image = product.images[0];
+    if (image.startsWith("http")) return image;
+    const cleanPath = image.replace(/\\/g, "/");
+    return `${API_URL}/${cleanPath}`;
   };
 
-  // Filter products
   const filteredProducts = products.filter((product) => {
     const matchesSearch = product.title
       ?.toLowerCase()
@@ -119,35 +129,65 @@ export default function Products() {
     return matchesSearch && matchesCategory;
   });
 
-  // Pagination logic
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const currentProducts = filteredProducts.slice(startIndex, endIndex);
 
-  // Reset to first page when filters change
+  const navigate = useNavigate();
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, selectedCategory]);
 
-  const handleDelete = (id, name) => {
-    // Show toast notification (mock implementation)
-    console.log(`Product "${name}" deleted successfully.`);
-    setProducts((prev) => prev.filter((p) => p._id !== id));
+  const handleDelete = async (id: string, name: string) => {
+    try {
+      const res = await deleteProduct(id);
+      if (res.success) {
+        setProducts((prev) => prev.filter((p) => p._id !== id));
+        window.location.reload();
+      } else {
+        alert(res.message || "Failed to delete product");
+      }
+    } catch (err: any) {
+      console.error("Delete failed:", err.message || err);
+    }
   };
 
-  const handleSubmit = (e: any) => {
+  const handleSubmit = async (e: any) => {
     e.preventDefault();
-    console.log(`New product "${formData.name}" added successfully.`);
-    setIsAddDialogOpen(false);
-    setFormData({
-      name: "",
-      category: "SCV Cargo",
-      price: "",
-      description: "",
-      image: null,
-      brochure: null,
-    });
+    setSubmitting(true);
+
+    try {
+      const fd = new FormData();
+      fd.append("title", formData.name);
+      fd.append("category", formData.category);
+      fd.append("price", formData.price);
+      fd.append("description", formData.description);
+
+      if (formData.image) fd.append("images", formData.image);
+      if (formData.brochure) fd.append("brochureFile", formData.brochure);
+
+      const res = await createProduct(fd);
+
+      if (res.message === "Product created") {
+        // 👈 check API status
+        setFormData({
+          name: "",
+          category: "SCV Cargo",
+          price: "",
+          description: "",
+          image: null,
+          brochure: null,
+        });
+      }
+      setIsAddDialogOpen(false);
+      window.location.reload();
+    } catch (err) {
+      console.error("Failed to create product:", err.message || err);
+      alert(err.message || "Failed to create product");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleFormChange = (field, value) => {
@@ -157,9 +197,41 @@ export default function Products() {
     }));
   };
 
-  const handlePageChange = (page) => {
-    setCurrentPage(page);
+  
+  const handleUpdateSubmit = async (e: any) => {
+    e.preventDefault();
+    if (!editingProduct) return;
+
+    setSubmitting(true);
+    try {
+      const fd = new FormData();
+      fd.append("title", formData.name);
+      fd.append("category", formData.category);
+      fd.append("price", formData.price);
+      fd.append("description", formData.description);
+
+      if (formData.image) fd.append("images", formData.image);
+      if (formData.brochure) fd.append("brochureFile", formData.brochure);
+
+      const res = await updateProduct(editingProduct._id, fd);
+
+      if (res.success || res.message === "Product updated") {
+        setProducts((prev) =>
+          prev.map((p) => (p._id === editingProduct._id ? res.data : p))
+        );
+        setIsEditDialogOpen(false);
+        setEditingProduct(null);
+
+        window.location.reload();
+      }
+    } catch (err: any) {
+      console.error("Failed to update product:", err.message || err);
+      alert(err.message || "Failed to update product");
+    } finally {
+      setSubmitting(false);
+    }
   };
+  const handlePageChange = (page) => setCurrentPage(page);
 
   if (loading) {
     return (
@@ -182,6 +254,8 @@ export default function Products() {
             Manage your vehicle inventory and listings
           </p>
         </div>
+
+        {/* 👉 Add Product Dialog */}
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
             <Button className="vikram-button gap-2 w-fit">
@@ -205,6 +279,7 @@ export default function Products() {
                 />
               </div>
 
+              {/* Category */}
               <div>
                 <label className="block text-sm font-medium mb-1">
                   Category
@@ -220,6 +295,7 @@ export default function Products() {
                 </select>
               </div>
 
+              {/* Price */}
               <div>
                 <label className="block text-sm font-medium mb-1">Price</label>
                 <Input
@@ -229,6 +305,7 @@ export default function Products() {
                 />
               </div>
 
+              {/* Description */}
               <div>
                 <label className="block text-sm font-medium mb-1">
                   Description
@@ -242,6 +319,7 @@ export default function Products() {
                 />
               </div>
 
+              {/* File Inputs */}
               <div>
                 <label className="block text-sm font-medium mb-1">
                   Product Image
@@ -254,7 +332,6 @@ export default function Products() {
                   }
                 />
               </div>
-
               <div>
                 <label className="block text-sm font-medium mb-1">
                   Product Brochure (PDF)
@@ -268,13 +345,126 @@ export default function Products() {
                 />
               </div>
 
+              {/* Buttons */}
               <div className="flex gap-2">
-                <Button onClick={handleSubmit} className="vikram-button">
-                  Add Product
+                <Button
+                  onClick={handleSubmit}
+                  className="vikram-button flex items-center gap-2"
+                  disabled={submitting}
+                >
+                  {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {submitting ? "Adding..." : "Add Product"}
                 </Button>
                 <Button
                   variant="outline"
                   onClick={() => setIsAddDialogOpen(false)}
+                  disabled={submitting}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent className="vikram-card max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Edit Product</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              {/* Same form fields as Add */}
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Product Name
+                </label>
+                <Input
+                  placeholder="Enter product name"
+                  value={formData.name}
+                  onChange={(e) => handleFormChange("name", e.target.value)}
+                />
+              </div>
+
+              {/* Category */}
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Category
+                </label>
+                <select
+                  value={formData.category}
+                  onChange={(e) => handleFormChange("category", e.target.value)}
+                  className="w-full px-3 py-2 rounded-md border bg-input"
+                >
+                  <option value="SCV Cargo">SCV Cargo</option>
+                  <option value="SCV Passenger">SCV Passenger</option>
+                  <option value="Pickup">Pickup</option>
+                </select>
+              </div>
+
+              {/* Price */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Price</label>
+                <Input
+                  placeholder="e.g., 3.99 Lakh"
+                  value={formData.price}
+                  onChange={(e) => handleFormChange("price", e.target.value)}
+                />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Description
+                </label>
+                <Textarea
+                  placeholder="Enter product description..."
+                  value={formData.description}
+                  onChange={(e) =>
+                    handleFormChange("description", e.target.value)
+                  }
+                />
+              </div>
+
+              {/* File inputs */}
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Product Image (upload to replace)
+                </label>
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) =>
+                    handleFormChange("image", e.target.files?.[0] || null)
+                  }
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Product Brochure (upload to replace)
+                </label>
+                <Input
+                  type="file"
+                  accept=".pdf"
+                  onChange={(e) =>
+                    handleFormChange("brochure", e.target.files?.[0] || null)
+                  }
+                />
+              </div>
+
+              {/* Buttons */}
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleUpdateSubmit}
+                  className="vikram-button flex items-center gap-2"
+                  disabled={submitting}
+                >
+                  {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {submitting ? "Updating..." : "Update Product"}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsEditDialogOpen(false)}
+                  disabled={submitting}
                 >
                   Cancel
                 </Button>
@@ -365,15 +555,11 @@ export default function Products() {
                           <div className="flex items-center gap-3">
                             <div className="w-12 h-12 rounded-lg bg-muted overflow-hidden">
                               <img
-                                src={`/${product.images[0].replace(
-                                  /\\/g,
-                                  "/"
-                                )}`}
-                                alt={product.title}
+                                src={getImageUrl(product)}
+                                alt={product.title || "Product image"}
                                 className="w-full h-full object-cover"
                                 onError={(e) => {
-                                  (e.target as HTMLImageElement).src =
-                                    "/placeholder.svg"; // fallback if not found
+                                  e.currentTarget.src = "/placeholder.svg";
                                 }}
                               />
                             </div>
@@ -425,15 +611,32 @@ export default function Products() {
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8"
+                              onClick={() => {
+                                setEditingProduct(product);
+                                setFormData({
+                                  name: product.title,
+                                  category: product.category || "SCV Cargo",
+                                  price: product.price,
+                                  description: product.description,
+                                  image: null, // don’t set old file directly
+                                  brochure: null, // same here
+                                });
+                                setIsEditDialogOpen(true);
+                              }}
                             >
-                              <Eye className="h-4 w-4" />
+                              <Edit className="h-4 w-4" />
                             </Button>
+
+                            {/* View Button */}
                             <Button
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8"
+                              onClick={() =>
+                                navigate(`/admin/products/${product._id}`)
+                              }
                             >
-                              <Edit className="h-4 w-4" />
+                              <Eye className="h-4 w-4" />
                             </Button>
                             {product.brochureFile && (
                               <Button
@@ -441,17 +644,20 @@ export default function Products() {
                                 size="icon"
                                 className="h-8 w-8"
                                 onClick={() => {
-                                  // Open brochure in new tab
-                                  const brochureUrl = `/${product.brochureFile.replace(
-                                    /\\/g,
-                                    "/"
-                                  )}`;
+                                  let brochureUrl = product.brochureFile;
+                                  if (!brochureUrl.startsWith("http")) {
+                                    brochureUrl = `${API_URL}/${brochureUrl.replace(
+                                      /\\/g,
+                                      "/"
+                                    )}`;
+                                  }
                                   window.open(brochureUrl, "_blank");
                                 }}
                               >
                                 <FileText className="h-4 w-4" />
                               </Button>
                             )}
+
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
                                 <Button
