@@ -62,6 +62,9 @@ export default function Products() {
     category: "SCV Cargo",
     price: "",
     description: "",
+    gvw: "",
+    engine: "",
+    fuelTankCapacity: "",
     image: null,
     brochure: null,
   });
@@ -163,6 +166,9 @@ export default function Products() {
       fd.append("category", formData.category);
       fd.append("price", formData.price);
       fd.append("description", formData.description);
+      fd.append("gvw", formData.gvw);
+      fd.append("engine", formData.engine);
+      fd.append("fuelTankCapacity", formData.fuelTankCapacity);
 
       if (formData.image) fd.append("images", formData.image);
       if (formData.brochure) fd.append("brochureFile", formData.brochure);
@@ -170,19 +176,21 @@ export default function Products() {
       const res = await createProduct(fd);
 
       if (res.message === "Product created") {
-        // 👈 check API status
         setFormData({
           name: "",
           category: "SCV Cargo",
           price: "",
           description: "",
+          gvw: "",
+          engine: "",
+          fuelTankCapacity: "",
           image: null,
           brochure: null,
         });
       }
       setIsAddDialogOpen(false);
       window.location.reload();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to create product:", err.message || err);
       alert(err.message || "Failed to create product");
     } finally {
@@ -197,7 +205,6 @@ export default function Products() {
     }));
   };
 
-  
   const handleUpdateSubmit = async (e: any) => {
     e.preventDefault();
     if (!editingProduct) return;
@@ -209,6 +216,9 @@ export default function Products() {
       fd.append("category", formData.category);
       fd.append("price", formData.price);
       fd.append("description", formData.description);
+      fd.append("gvw", formData.gvw);
+      fd.append("engine", formData.engine);
+      fd.append("fuelTankCapacity", formData.fuelTankCapacity);
 
       if (formData.image) fd.append("images", formData.image);
       if (formData.brochure) fd.append("brochureFile", formData.brochure);
@@ -265,105 +275,152 @@ export default function Products() {
           </DialogTrigger>
           <DialogContent className="vikram-card max-w-2xl">
             <DialogHeader>
+              <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Product Name
+                    </label>
+                    <Input
+                      placeholder="Enter product name"
+                      value={formData.name}
+                      onChange={(e) => handleFormChange("name", e.target.value)}
+                    />
+                  </div>
+
+                  {/* Category */}
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Category
+                    </label>
+                    <select
+                      value={formData.category}
+                      onChange={(e) =>
+                        handleFormChange("category", e.target.value)
+                      }
+                      className="w-full px-3 py-2 rounded-md border bg-input"
+                    >
+                      <option value="SCV Cargo">SCV Cargo</option>
+                      <option value="SCV Passenger">SCV Passenger</option>
+                      <option value="Pickup">Pickup</option>
+                    </select>
+                  </div>
+
+                  {/* Price */}
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Price
+                    </label>
+                    <Input
+                      placeholder="e.g., 3.99 Lakh"
+                      value={formData.price}
+                      onChange={(e) =>
+                        handleFormChange("price", e.target.value)
+                      }
+                    />
+                  </div>
+
+                  {/* Description */}
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Description
+                    </label>
+                    <Textarea
+                      placeholder="Enter product description..."
+                      value={formData.description}
+                      onChange={(e) =>
+                        handleFormChange("description", e.target.value)
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      GVW
+                    </label>
+                    <Input
+                      placeholder="Enter GVW"
+                      value={formData.gvw}
+                      onChange={(e) => handleFormChange("gvw", e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Engine
+                    </label>
+                    <Input
+                      placeholder="Enter Engine details"
+                      value={formData.engine}
+                      onChange={(e) =>
+                        handleFormChange("engine", e.target.value)
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Fuel Tank Capacity
+                    </label>
+                    <Input
+                      placeholder="Enter Fuel Tank Capacity"
+                      value={formData.fuelTankCapacity}
+                      onChange={(e) =>
+                        handleFormChange("fuelTankCapacity", e.target.value)
+                      }
+                    />
+                  </div>
+
+                  {/* File Inputs */}
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Product Image
+                    </label>
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) =>
+                        handleFormChange("image", e.target.files?.[0] || null)
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Product Brochure (PDF)
+                    </label>
+                    <Input
+                      type="file"
+                      accept=".pdf"
+                      onChange={(e) =>
+                        handleFormChange(
+                          "brochure",
+                          e.target.files?.[0] || null
+                        )
+                      }
+                    />
+                  </div>
+
+                  {/* Buttons */}
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleSubmit}
+                      className="vikram-button flex items-center gap-2"
+                      disabled={submitting}
+                    >
+                      {submitting && (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      )}
+                      {submitting ? "Adding..." : "Add Product"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsAddDialogOpen(false)}
+                      disabled={submitting}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              </div>
               <DialogTitle>Add New Product</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Product Name
-                </label>
-                <Input
-                  placeholder="Enter product name"
-                  value={formData.name}
-                  onChange={(e) => handleFormChange("name", e.target.value)}
-                />
-              </div>
-
-              {/* Category */}
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Category
-                </label>
-                <select
-                  value={formData.category}
-                  onChange={(e) => handleFormChange("category", e.target.value)}
-                  className="w-full px-3 py-2 rounded-md border bg-input"
-                >
-                  <option value="SCV Cargo">SCV Cargo</option>
-                  <option value="SCV Passenger">SCV Passenger</option>
-                  <option value="Pickup">Pickup</option>
-                </select>
-              </div>
-
-              {/* Price */}
-              <div>
-                <label className="block text-sm font-medium mb-1">Price</label>
-                <Input
-                  placeholder="e.g., 3.99 Lakh"
-                  value={formData.price}
-                  onChange={(e) => handleFormChange("price", e.target.value)}
-                />
-              </div>
-
-              {/* Description */}
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Description
-                </label>
-                <Textarea
-                  placeholder="Enter product description..."
-                  value={formData.description}
-                  onChange={(e) =>
-                    handleFormChange("description", e.target.value)
-                  }
-                />
-              </div>
-
-              {/* File Inputs */}
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Product Image
-                </label>
-                <Input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) =>
-                    handleFormChange("image", e.target.files?.[0] || null)
-                  }
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Product Brochure (PDF)
-                </label>
-                <Input
-                  type="file"
-                  accept=".pdf"
-                  onChange={(e) =>
-                    handleFormChange("brochure", e.target.files?.[0] || null)
-                  }
-                />
-              </div>
-
-              {/* Buttons */}
-              <div className="flex gap-2">
-                <Button
-                  onClick={handleSubmit}
-                  className="vikram-button flex items-center gap-2"
-                  disabled={submitting}
-                >
-                  {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                  {submitting ? "Adding..." : "Add Product"}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setIsAddDialogOpen(false)}
-                  disabled={submitting}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
           </DialogContent>
         </Dialog>
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
@@ -371,6 +428,143 @@ export default function Products() {
             <DialogHeader>
               <DialogTitle>Edit Product</DialogTitle>
             </DialogHeader>
+
+            <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+              <div className="space-y-4">
+                {/* Same form fields as Add */}
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Product Name
+                  </label>
+                  <Input
+                    placeholder="Enter product name"
+                    value={formData.name}
+                    onChange={(e) => handleFormChange("name", e.target.value)}
+                  />
+                </div>
+
+                {/* Category */}
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Category
+                  </label>
+                  <select
+                    value={formData.category}
+                    onChange={(e) =>
+                      handleFormChange("category", e.target.value)
+                    }
+                    className="w-full px-3 py-2 rounded-md border bg-input"
+                  >
+                    <option value="SCV Cargo">SCV Cargo</option>
+                    <option value="SCV Passenger">SCV Passenger</option>
+                    <option value="Pickup">Pickup</option>
+                  </select>
+                </div>
+
+                {/* Price */}
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Price
+                  </label>
+                  <Input
+                    placeholder="e.g., 3.99 Lakh"
+                    value={formData.price}
+                    onChange={(e) => handleFormChange("price", e.target.value)}
+                  />
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Description
+                  </label>
+                  <Textarea
+                    placeholder="Enter product description..."
+                    value={formData.description}
+                    onChange={(e) =>
+                      handleFormChange("description", e.target.value)
+                    }
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">GVW</label>
+                  <Input
+                    placeholder="Enter GVW"
+                    value={formData.gvw}
+                    onChange={(e) => handleFormChange("gvw", e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Engine
+                  </label>
+                  <Input
+                    placeholder="Enter Engine details"
+                    value={formData.engine}
+                    onChange={(e) => handleFormChange("engine", e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Fuel Tank Capacity
+                  </label>
+                  <Input
+                    placeholder="Enter Fuel Tank Capacity"
+                    value={formData.fuelTankCapacity}
+                    onChange={(e) =>
+                      handleFormChange("fuelTankCapacity", e.target.value)
+                    }
+                  />
+                </div>
+
+                {/* File inputs */}
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Product Image (upload to replace)
+                  </label>
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) =>
+                      handleFormChange("image", e.target.files?.[0] || null)
+                    }
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Product Brochure (upload to replace)
+                  </label>
+                  <Input
+                    type="file"
+                    accept=".pdf"
+                    onChange={(e) =>
+                      handleFormChange("brochure", e.target.files?.[0] || null)
+                    }
+                  />
+                </div>
+
+                {/* Buttons */}
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleUpdateSubmit}
+                    className="vikram-button flex items-center gap-2"
+                    disabled={submitting}
+                  >
+                    {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {submitting ? "Updating..." : "Update Product"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsEditDialogOpen(false)}
+                    disabled={submitting}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </div>
             <div className="space-y-4">
               {/* Same form fields as Add */}
               <div>
@@ -420,6 +614,35 @@ export default function Products() {
                   value={formData.description}
                   onChange={(e) =>
                     handleFormChange("description", e.target.value)
+                  }
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">GVW</label>
+                <Input
+                  placeholder="Enter GVW"
+                  value={formData.gvw}
+                  onChange={(e) => handleFormChange("gvw", e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Engine</label>
+                <Input
+                  placeholder="Enter Engine details"
+                  value={formData.engine}
+                  onChange={(e) => handleFormChange("engine", e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Fuel Tank Capacity
+                </label>
+                <Input
+                  placeholder="Enter Fuel Tank Capacity"
+                  value={formData.fuelTankCapacity}
+                  onChange={(e) =>
+                    handleFormChange("fuelTankCapacity", e.target.value)
                   }
                 />
               </div>
@@ -618,8 +841,11 @@ export default function Products() {
                                   category: product.category || "SCV Cargo",
                                   price: product.price,
                                   description: product.description,
-                                  image: null, // don’t set old file directly
-                                  brochure: null, // same here
+                                  gvw: product.gvw,
+                                  engine: product.engine,
+                                  fuelTankCapacity: product.fuelTankCapacity,
+                                  image: null,
+                                  brochure: null,
                                 });
                                 setIsEditDialogOpen(true);
                               }}

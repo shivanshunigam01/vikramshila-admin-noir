@@ -2,7 +2,13 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, Package, IndianRupee, FileText, ChevronLeft } from "lucide-react";
+import {
+  Loader2,
+  Package,
+  IndianRupee,
+  FileText,
+  ChevronLeft,
+} from "lucide-react";
 import { useParams, useNavigate } from "react-router-dom";
 
 export default function ProductDetails() {
@@ -57,6 +63,7 @@ export default function ProductDetails() {
         <ChevronLeft className="h-4 w-4" />
         Back
       </Button>
+
       <Card className="vikram-card">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -67,6 +74,7 @@ export default function ProductDetails() {
             Created on {new Date(product.createdAt).toLocaleDateString("en-IN")}
           </p>
         </CardHeader>
+
         <CardContent className="space-y-6">
           {/* Product Image */}
           <div className="w-full max-w-md">
@@ -108,7 +116,29 @@ export default function ProductDetails() {
               </Badge>
             </div>
 
-            {/* Brochure */}
+            {/* 🚛 Additional Details */}
+            {product.gvw && (
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold">GVW:</h3>
+                <span>{product.gvw}</span>
+              </div>
+            )}
+
+            {product.engine && (
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold">Engine:</h3>
+                <span>{product.engine}</span>
+              </div>
+            )}
+
+            {product.fuelTankCapacity && (
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold">Fuel Tank Capacity:</h3>
+                <span>{product.fuelTankCapacity}</span>
+              </div>
+            )}
+
+            {/* 📄 Brochure */}
             {product.brochureFile && (
               <Button
                 variant="outline"
