@@ -14,6 +14,7 @@ import NewLaunches from "./pages/admin/NewLaunches";
 import Services from "./pages/admin/Services";
 import Enquiries from "./pages/admin/Enquiries";
 import ProductDetails from "./pages/ProductDetails";
+import BannerImageUpload from "./pages/admin/BannerImageUpload";
 
 const queryClient = new QueryClient();
 
@@ -34,6 +35,7 @@ const App = () => (
             <Route path="services" element={<Services />} />
             <Route path="enquiries" element={<Enquiries />} />
             <Route path="products/:id" element={<ProductDetails />} />
+            <Route path="banner" element={<BannerImageUpload />} />
           </Route>
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

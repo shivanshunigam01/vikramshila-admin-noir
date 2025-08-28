@@ -33,6 +33,7 @@ const navigationItems = [
   { name: "Products", href: "/admin/products", icon: Package },
   { name: "Schemes & Offers", href: "/admin/schemes", icon: Gift },
   { name: "Testimonials", href: "/admin/testimonials", icon: Users },
+  { name: "Banner Images", href: "/admin/banner", icon: Users },
   { name: "New Launches", href: "/admin/launches", icon: Rocket },
   { name: "Services", href: "/admin/services", icon: Settings },
   { name: "Enquiries", href: "/admin/enquiries", icon: Mail },
