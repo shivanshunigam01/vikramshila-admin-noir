@@ -121,9 +121,9 @@ export default function LoginForm({ onLogin, onCancel }: LoginFormProps) {
                   onClick={() => setShowPassword(!showPassword)}
                 >
                   {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
+                    <EyeOff className="h-4 w-4 text-black" />
                   ) : (
-                    <Eye className="h-4 w-4" />
+                    <EyeOff className="h-4 w-4 text-black" />
                   )}
                 </Button>
               </div>

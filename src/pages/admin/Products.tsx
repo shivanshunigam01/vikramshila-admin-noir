@@ -22,6 +22,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/components/ui/use-toast";
 import {
   Plus,
   Search,
@@ -35,14 +36,18 @@ import {
   ChevronRight,
   FileText,
   Loader2,
+  X,
+  Star,
+  Download,
+  ExternalLink,
 } from "lucide-react";
 import {
-  getProducts,
   createProduct,
-  updateProduct,
   deleteProduct,
+  getProducts,
+  updateProduct,
 } from "@/services/productService";
-import { Navigate, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 export default function Products() {
   const [products, setProducts] = useState([]);
@@ -52,11 +57,13 @@ export default function Products() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false); // loader for add product
+  const [submitting, setSubmitting] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
 
-  // Form state
+  const { toast } = useToast();
+
+  // Enhanced form state with all fields including reviews and testimonials
   const [formData, setFormData] = useState({
     name: "",
     category: "SCV Cargo",
@@ -64,9 +71,44 @@ export default function Products() {
     description: "",
     gvw: "",
     engine: "",
+    fuelType: "",
+    gearBox: "",
+    clutchDia: "",
+    torque: "",
+    tyre: "",
     fuelTankCapacity: "",
+    cabinType: "",
+    warranty: "",
+    applicationSuitability: "",
+    payload: "",
+    deckLength: [""],
+    deckWidth: "",
+    bodyDimensions: "",
+    usp: [""],
+    tco: "",
+    profitMargin: "",
     image: null,
     brochure: null,
+    reviews: [
+      {
+        type: "text",
+        content: "",
+        file: null,
+        rating: 5,
+        customerName: "",
+        customerLocation: "",
+      },
+    ],
+    testimonials: [
+      {
+        type: "text",
+        content: "",
+        file: null,
+        customerName: "",
+        customerLocation: "",
+        customerDesignation: "",
+      },
+    ],
   });
 
   const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
@@ -77,8 +119,17 @@ export default function Products() {
         setLoading(true);
         const res = await getProducts();
         setProducts(res.data || []);
+        toast({
+          title: "Success",
+          description: "Products loaded successfully",
+        });
       } catch (err) {
         console.error("Failed to fetch products:", err.message || err);
+        toast({
+          title: "Error",
+          description: "Failed to fetch products",
+          variant: "destructive",
+        });
       } finally {
         setLoading(false);
       }
@@ -138,25 +189,39 @@ export default function Products() {
   const currentProducts = filteredProducts.slice(startIndex, endIndex);
 
   const navigate = useNavigate();
+
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, selectedCategory]);
 
-  const handleDelete = async (id: string, name: string) => {
+  const handleDelete = async (id, name) => {
     try {
       const res = await deleteProduct(id);
       if (res.success) {
         setProducts((prev) => prev.filter((p) => p._id !== id));
+        toast({
+          title: "Success",
+          description: `Product "${name}" deleted successfully`,
+        });
         window.location.reload();
       } else {
-        alert(res.message || "Failed to delete product");
+        toast({
+          title: "Error",
+          description: res.message || "Failed to delete product",
+          variant: "destructive",
+        });
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error("Delete failed:", err.message || err);
+      toast({
+        title: "Error",
+        description: err.message || "Failed to delete product",
+        variant: "destructive",
+      });
     }
   };
 
-  const handleSubmit = async (e: any) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
 
@@ -168,7 +233,68 @@ export default function Products() {
       fd.append("description", formData.description);
       fd.append("gvw", formData.gvw);
       fd.append("engine", formData.engine);
+      fd.append("fuelType", formData.fuelType);
+      fd.append("gearBox", formData.gearBox);
+      fd.append("clutchDia", formData.clutchDia);
+      fd.append("torque", formData.torque);
+      fd.append("tyre", formData.tyre);
       fd.append("fuelTankCapacity", formData.fuelTankCapacity);
+      fd.append("cabinType", formData.cabinType);
+      fd.append("warranty", formData.warranty);
+      fd.append("applicationSuitability", formData.applicationSuitability);
+      fd.append("payload", formData.payload);
+      fd.append("deckWidth", formData.deckWidth);
+      fd.append("bodyDimensions", formData.bodyDimensions);
+      fd.append("tco", formData.tco);
+      fd.append("profitMargin", formData.profitMargin);
+
+      // Handle arrays
+      formData.deckLength.forEach((item, index) => {
+        if (item.trim()) fd.append(`deckLength[${index}]`, item);
+      });
+      formData.usp.forEach((item, index) => {
+        if (item.trim()) fd.append(`usp[${index}]`, item);
+      });
+
+      // Handle reviews
+      formData.reviews.forEach((review, index) => {
+        if (review.content || review.customerName) {
+          fd.append(`reviews[${index}][type]`, review.type);
+          fd.append(`reviews[${index}][content]`, review.content);
+          fd.append(`reviews[${index}][rating]`, review.rating.toString());
+          fd.append(`reviews[${index}][customerName]`, review.customerName);
+          fd.append(
+            `reviews[${index}][customerLocation]`,
+            review.customerLocation
+          );
+          if (review.file) {
+            fd.append(`reviewFiles`, review.file);
+          }
+        }
+      });
+
+      // Handle testimonials
+      formData.testimonials.forEach((testimonial, index) => {
+        if (testimonial.content || testimonial.customerName) {
+          fd.append(`testimonials[${index}][type]`, testimonial.type);
+          fd.append(`testimonials[${index}][content]`, testimonial.content);
+          fd.append(
+            `testimonials[${index}][customerName]`,
+            testimonial.customerName
+          );
+          fd.append(
+            `testimonials[${index}][customerLocation]`,
+            testimonial.customerLocation
+          );
+          fd.append(
+            `testimonials[${index}][customerDesignation]`,
+            testimonial.customerDesignation
+          );
+          if (testimonial.file) {
+            fd.append(`testimonialFiles`, testimonial.file);
+          }
+        }
+      });
 
       if (formData.image) fd.append("images", formData.image);
       if (formData.brochure) fd.append("brochureFile", formData.brochure);
@@ -183,16 +309,59 @@ export default function Products() {
           description: "",
           gvw: "",
           engine: "",
+          fuelType: "",
+          gearBox: "",
+          clutchDia: "",
+          torque: "",
+          tyre: "",
           fuelTankCapacity: "",
+          cabinType: "",
+          warranty: "",
+          applicationSuitability: "",
+          payload: "",
+          deckLength: [""],
+          deckWidth: "",
+          bodyDimensions: "",
+          usp: [""],
+          tco: "",
+          profitMargin: "",
           image: null,
           brochure: null,
+          reviews: [
+            {
+              type: "text",
+              content: "",
+              file: null,
+              rating: 5,
+              customerName: "",
+              customerLocation: "",
+            },
+          ],
+          testimonials: [
+            {
+              type: "text",
+              content: "",
+              file: null,
+              customerName: "",
+              customerLocation: "",
+              customerDesignation: "",
+            },
+          ],
+        });
+        toast({
+          title: "Success",
+          description: "Product created successfully",
         });
       }
       setIsAddDialogOpen(false);
       window.location.reload();
-    } catch (err: any) {
+    } catch (err) {
       console.error("Failed to create product:", err.message || err);
-      alert(err.message || "Failed to create product");
+      toast({
+        title: "Error",
+        description: err.message || "Failed to create product",
+        variant: "destructive",
+      });
     } finally {
       setSubmitting(false);
     }
@@ -205,7 +374,94 @@ export default function Products() {
     }));
   };
 
-  const handleUpdateSubmit = async (e: any) => {
+  const handleArrayChange = (field, index, value) => {
+    setFormData((prev) => ({
+      ...prev,
+      [field]: prev[field].map((item, i) => (i === index ? value : item)),
+    }));
+  };
+
+  const handleReviewChange = (index, field, value) => {
+    setFormData((prev) => ({
+      ...prev,
+      reviews: prev.reviews.map((review, i) =>
+        i === index ? { ...review, [field]: value } : review
+      ),
+    }));
+  };
+
+  const handleTestimonialChange = (index, field, value) => {
+    setFormData((prev) => ({
+      ...prev,
+      testimonials: prev.testimonials.map((testimonial, i) =>
+        i === index ? { ...testimonial, [field]: value } : testimonial
+      ),
+    }));
+  };
+
+  const addArrayItem = (field) => {
+    setFormData((prev) => ({
+      ...prev,
+      [field]: [...prev[field], ""],
+    }));
+  };
+
+  const addReview = () => {
+    setFormData((prev) => ({
+      ...prev,
+      reviews: [
+        ...prev.reviews,
+        {
+          type: "text",
+          content: "",
+          file: null,
+          rating: 5,
+          customerName: "",
+          customerLocation: "",
+        },
+      ],
+    }));
+  };
+
+  const addTestimonial = () => {
+    setFormData((prev) => ({
+      ...prev,
+      testimonials: [
+        ...prev.testimonials,
+        {
+          type: "text",
+          content: "",
+          file: null,
+          customerName: "",
+          customerLocation: "",
+          customerDesignation: "",
+        },
+      ],
+    }));
+  };
+
+  const removeArrayItem = (field, index) => {
+    setFormData((prev) => ({
+      ...prev,
+      [field]: prev[field].filter((_, i) => i !== index),
+    }));
+  };
+
+  const removeReview = (index) => {
+    setFormData((prev) => ({
+      ...prev,
+      reviews: prev.reviews.filter((_, i) => i !== index),
+    }));
+  };
+
+  const removeTestimonial = (index) => {
+    setFormData((prev) => ({
+      ...prev,
+      testimonials: prev.testimonials.filter((_, i) => i !== index),
+    }));
+  };
+
+  const handleUpdateSubmit = async (e) => {
     e.preventDefault();
     if (!editingProduct) return;
 
@@ -218,7 +474,68 @@ export default function Products() {
       fd.append("description", formData.description);
       fd.append("gvw", formData.gvw);
       fd.append("engine", formData.engine);
+      fd.append("fuelType", formData.fuelType);
+      fd.append("gearBox", formData.gearBox);
+      fd.append("clutchDia", formData.clutchDia);
+      fd.append("torque", formData.torque);
+      fd.append("tyre", formData.tyre);
       fd.append("fuelTankCapacity", formData.fuelTankCapacity);
+      fd.append("cabinType", formData.cabinType);
+      fd.append("warranty", formData.warranty);
+      fd.append("applicationSuitability", formData.applicationSuitability);
+      fd.append("payload", formData.payload);
+      fd.append("deckWidth", formData.deckWidth);
+      fd.append("bodyDimensions", formData.bodyDimensions);
+      fd.append("tco", formData.tco);
+      fd.append("profitMargin", formData.profitMargin);
+
+      // Handle arrays
+      formData.deckLength.forEach((item, index) => {
+        if (item.trim()) fd.append(`deckLength[${index}]`, item);
+      });
+      formData.usp.forEach((item, index) => {
+        if (item.trim()) fd.append(`usp[${index}]`, item);
+      });
+
+      // Handle reviews
+      formData.reviews.forEach((review, index) => {
+        if (review.content || review.customerName) {
+          fd.append(`reviews[${index}][type]`, review.type);
+          fd.append(`reviews[${index}][content]`, review.content);
+          fd.append(`reviews[${index}][rating]`, review.rating.toString());
+          fd.append(`reviews[${index}][customerName]`, review.customerName);
+          fd.append(
+            `reviews[${index}][customerLocation]`,
+            review.customerLocation
+          );
+          if (review.file) {
+            fd.append(`reviewFiles`, review.file);
+          }
+        }
+      });
+
+      // Handle testimonials
+      formData.testimonials.forEach((testimonial, index) => {
+        if (testimonial.content || testimonial.customerName) {
+          fd.append(`testimonials[${index}][type]`, testimonial.type);
+          fd.append(`testimonials[${index}][content]`, testimonial.content);
+          fd.append(
+            `testimonials[${index}][customerName]`,
+            testimonial.customerName
+          );
+          fd.append(
+            `testimonials[${index}][customerLocation]`,
+            testimonial.customerLocation
+          );
+          fd.append(
+            `testimonials[${index}][customerDesignation]`,
+            testimonial.customerDesignation
+          );
+          if (testimonial.file) {
+            fd.append(`testimonialFiles`, testimonial.file);
+          }
+        }
+      });
 
       if (formData.image) fd.append("images", formData.image);
       if (formData.brochure) fd.append("brochureFile", formData.brochure);
@@ -231,17 +548,792 @@ export default function Products() {
         );
         setIsEditDialogOpen(false);
         setEditingProduct(null);
-
+        toast({
+          title: "Success",
+          description: "Product updated successfully",
+        });
         window.location.reload();
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error("Failed to update product:", err.message || err);
-      alert(err.message || "Failed to update product");
+      toast({
+        title: "Error",
+        description: err.message || "Failed to update product",
+        variant: "destructive",
+      });
     } finally {
       setSubmitting(false);
     }
   };
+
   const handlePageChange = (page) => setCurrentPage(page);
+
+  const renderStars = (rating, onRatingChange = null) => {
+    return (
+      <div className="flex items-center gap-1">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <Star
+            key={star}
+            className={`h-4 w-4 ${
+              star <= rating
+                ? "fill-yellow-400 text-yellow-400"
+                : "text-gray-300"
+            } ${onRatingChange ? "cursor-pointer" : ""}`}
+            onClick={() => onRatingChange && onRatingChange(star)}
+          />
+        ))}
+      </div>
+    );
+  };
+
+  const renderFilePreview = (fileUrl, fileName, type = "file") => {
+    if (!fileUrl) return null;
+
+    const getFileName = (url) => {
+      if (!url) return "File";
+      const parts = url.split("/");
+      return parts[parts.length - 1].split("-").pop() || "File";
+    };
+
+    return (
+      <div className="mt-2 p-3 bg-gray-900 rounded-lg border border-gray-700">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <FileText className="h-4 w-4 text-blue-400" />
+            <span className="text-sm font-medium text-white">
+              Current {type}: {fileName || getFileName(fileUrl)}
+            </span>
+          </div>
+          <div className="flex gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => window.open(fileUrl, "_blank")}
+              className="text-gray-300 hover:text-white hover:bg-gray-700"
+            >
+              <ExternalLink className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+        {(type === "image" || fileUrl.includes("image")) && (
+          <div className="mt-2">
+            <img
+              src={fileUrl}
+              alt="Preview"
+              className="max-w-32 max-h-32 object-cover rounded border border-gray-600"
+            />
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderProductForm = (isEdit = false) => (
+    <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+      {/* Basic Information */}
+      <div className="space-y-4 border-b pb-4">
+        <h3 className="font-semibold text-lg">Basic Information</h3>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              Product Name
+            </label>
+            <Input
+              placeholder="Enter product name"
+              value={formData.name}
+              onChange={(e) => handleFormChange("name", e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Category</label>
+            <select
+              value={formData.category}
+              onChange={(e) => handleFormChange("category", e.target.value)}
+              className="w-full px-3 py-2 rounded-md border bg-input"
+            >
+              <option value="SCV Cargo">SCV Cargo</option>
+              <option value="SCV Passenger">SCV Passenger</option>
+              <option value="Pickup">Pickup</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Price</label>
+            <Input
+              placeholder="e.g., 399000"
+              value={formData.price}
+              onChange={(e) => handleFormChange("price", e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Description</label>
+          <Textarea
+            placeholder="Enter product description..."
+            value={formData.description}
+            onChange={(e) => handleFormChange("description", e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* Technical Specifications */}
+      <div className="space-y-4 border-b pb-4">
+        <h3 className="font-semibold text-lg">Technical Specifications</h3>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">GVW</label>
+            <Input
+              placeholder="e.g., 1000 kg"
+              value={formData.gvw}
+              onChange={(e) => handleFormChange("gvw", e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Engine</label>
+            <Input
+              placeholder="e.g., BS6 Diesel 1.5L"
+              value={formData.engine}
+              onChange={(e) => handleFormChange("engine", e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Fuel Type</label>
+            <select
+              value={formData.fuelType}
+              onChange={(e) => handleFormChange("fuelType", e.target.value)}
+              className="w-full px-3 py-2 rounded-md border bg-input"
+            >
+              <option value="">Select Fuel Type</option>
+              <option value="Diesel">Diesel</option>
+              <option value="Petrol">Petrol</option>
+              <option value="CNG">CNG</option>
+              <option value="Electric">Electric</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Gear Box</label>
+            <Input
+              placeholder="e.g., 5-Speed Manual"
+              value={formData.gearBox}
+              onChange={(e) => handleFormChange("gearBox", e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              Clutch Diameter
+            </label>
+            <Input
+              placeholder="e.g., 200mm"
+              value={formData.clutchDia}
+              onChange={(e) => handleFormChange("clutchDia", e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Torque</label>
+            <Input
+              placeholder="e.g., 200 Nm @ 1400-2200 rpm"
+              value={formData.torque}
+              onChange={(e) => handleFormChange("torque", e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Tyre</label>
+            <Input
+              placeholder="e.g., 145/80 R12"
+              value={formData.tyre}
+              onChange={(e) => handleFormChange("tyre", e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              Fuel Tank Capacity
+            </label>
+            <Input
+              placeholder="e.g., 40 Liters"
+              value={formData.fuelTankCapacity}
+              onChange={(e) =>
+                handleFormChange("fuelTankCapacity", e.target.value)
+              }
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Cabin Type</label>
+            <select
+              value={formData.cabinType}
+              onChange={(e) => handleFormChange("cabinType", e.target.value)}
+              className="w-full px-3 py-2 rounded-md border bg-input"
+            >
+              <option value="">Select Cabin Type</option>
+              <option value="Single Cabin">Single Cabin</option>
+              <option value="Double Cabin">Double Cabin</option>
+              <option value="Crew Cabin">Crew Cabin</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Warranty</label>
+            <Input
+              placeholder="e.g., 2 years/40,000 km"
+              value={formData.warranty}
+              onChange={(e) => handleFormChange("warranty", e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Payload</label>
+            <Input
+              placeholder="e.g., 750 kg"
+              value={formData.payload}
+              onChange={(e) => handleFormChange("payload", e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Deck Width</label>
+            <Input
+              placeholder="e.g., 1400mm"
+              value={formData.deckWidth}
+              onChange={(e) => handleFormChange("deckWidth", e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">
+            Application Suitability
+          </label>
+          <Input
+            placeholder="e.g., Urban delivery, Construction, Agriculture"
+            value={formData.applicationSuitability}
+            onChange={(e) =>
+              handleFormChange("applicationSuitability", e.target.value)
+            }
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">
+            Body Dimensions
+          </label>
+          <Input
+            placeholder="e.g., L x W x H (mm)"
+            value={formData.bodyDimensions}
+            onChange={(e) => handleFormChange("bodyDimensions", e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* Deck Length Options */}
+      <div className="space-y-4 border-b pb-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-lg">Deck Length Options</h3>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => addArrayItem("deckLength")}
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Add Option
+          </Button>
+        </div>
+
+        {formData.deckLength.map((length, index) => (
+          <div key={index} className="flex gap-2">
+            <Input
+              placeholder="Enter deck length option"
+              value={length}
+              onChange={(e) =>
+                handleArrayChange("deckLength", index, e.target.value)
+              }
+            />
+            {formData.deckLength.length > 1 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => removeArrayItem("deckLength", index)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Unique Selling Points */}
+      <div className="space-y-4 border-b pb-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-lg">Unique Selling Points (USP)</h3>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => addArrayItem("usp")}
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Add USP
+          </Button>
+        </div>
+
+        {formData.usp.map((point, index) => (
+          <div key={index} className="flex gap-2">
+            <Input
+              placeholder="Enter USP point"
+              value={point}
+              onChange={(e) => handleArrayChange("usp", index, e.target.value)}
+            />
+            {formData.usp.length > 1 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => removeArrayItem("usp", index)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Business Information */}
+      <div className="space-y-4 border-b pb-4">
+        <h3 className="font-semibold text-lg">Business Information</h3>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              TCO (Total Cost of Ownership)
+            </label>
+            <Textarea
+              placeholder="Enter TCO details and calculations..."
+              value={formData.tco}
+              onChange={(e) => handleFormChange("tco", e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              Profit Margin Information
+            </label>
+            <Textarea
+              placeholder="Enter profit margin details..."
+              value={formData.profitMargin}
+              onChange={(e) => handleFormChange("profitMargin", e.target.value)}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Media & Files */}
+      <div className="space-y-4 border-b pb-4">
+        <h3 className="font-semibold text-lg">Media & Files</h3>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              Product Image
+            </label>
+            {isEdit && editingProduct?.images?.length > 0 && 
+              renderFilePreview(editingProduct.images[0], "Product Image", "image")
+            }
+            <Input
+              type="file"
+              accept="image/*"
+              onChange={(e) =>
+                handleFormChange("image", e.target.files?.[0] || null)
+              }
+            />
+            {!isEdit && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Upload a new product image
+              </p>
+            )}
+            {isEdit && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Upload a new image to replace the current one (optional)
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              Product Brochure (PDF)
+            </label>
+            {isEdit && editingProduct?.brochureFile && 
+              renderFilePreview(editingProduct.brochureFile, "Product Brochure", "brochure")
+            }
+            <Input
+              type="file"
+              accept=".pdf"
+              onChange={(e) =>
+                handleFormChange("brochure", e.target.files?.[0] || null)
+              }
+            />
+            {!isEdit && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Upload product brochure (PDF format)
+              </p>
+            )}
+            {isEdit && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Upload a new brochure to replace the current one (optional)
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Customer Reviews */}
+      <div className="space-y-4 border-b pb-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-lg">Customer Reviews</h3>
+          <Button type="button" variant="outline" size="sm" onClick={addReview}>
+            <Plus className="h-4 w-4 mr-1" />
+            Add Review
+          </Button>
+        </div>
+
+        {formData.reviews.map((review, index) => (
+          <div
+            key={index}
+            className="p-4 border border-gray-700 rounded-lg space-y-4 bg-gray-900"
+          >
+            <div className="flex items-center justify-between">
+              <h4 className="font-medium">Review {index + 1}</h4>
+              {formData.reviews.length > 1 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => removeReview(index)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Type
+                </label>
+                <select
+                  value={review.type}
+                  onChange={(e) =>
+                    handleReviewChange(index, "type", e.target.value)
+                  }
+                  className="w-full px-3 py-2 rounded-md border bg-input"
+                >
+                  <option value="text">Text Review</option>
+                  <option value="video">Video Review</option>
+                  <option value="photo">Photo Review</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Rating
+                </label>
+                <div className="flex items-center gap-2">
+                  {renderStars(review.rating, (rating) =>
+                    handleReviewChange(index, "rating", rating)
+                  )}
+                  <span className="text-sm text-muted-foreground">
+                    ({review.rating} Stars)
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Customer Name
+                </label>
+                <Input
+                  placeholder="Enter customer name"
+                  value={review.customerName}
+                  onChange={(e) =>
+                    handleReviewChange(index, "customerName", e.target.value)
+                  }
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Customer Location
+                </label>
+                <Input
+                  placeholder="e.g., Mumbai, Maharashtra"
+                  value={review.customerLocation}
+                  onChange={(e) =>
+                    handleReviewChange(
+                      index,
+                      "customerLocation",
+                      e.target.value
+                    )
+                  }
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Review Content
+              </label>
+              <Textarea
+                placeholder="Enter customer review content..."
+                value={review.content}
+                onChange={(e) =>
+                  handleReviewChange(index, "content", e.target.value)
+                }
+                rows={3}
+              />
+            </div>
+
+            {(review.type === "video" || review.type === "photo") && (
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  {review.type === "video" ? "Video File" : "Photo File"}
+                </label>
+                {/* Show existing review file if editing */}
+                {isEdit && editingProduct?.reviews?.[index]?.file && 
+                  renderFilePreview(
+                    editingProduct.reviews[index].file, 
+                    `Review ${review.type}`, 
+                    review.type === "photo" ? "image" : "video"
+                  )
+                }
+                <Input
+                  type="file"
+                  accept={review.type === "video" ? "video/*" : "image/*"}
+                  onChange={(e) =>
+                    handleReviewChange(
+                      index,
+                      "file",
+                      e.target.files?.[0] || null
+                    )
+                  }
+                />
+                {!isEdit && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Upload {review.type} file for this review
+                  </p>
+                )}
+                {isEdit && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Upload a new {review.type} to replace the current one (optional)
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Customer Testimonials */}
+      <div className="space-y-4 border-b pb-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-lg">
+            Customer Testimonials
+          </h3>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={addTestimonial}
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Add Testimonial
+          </Button>
+        </div>
+
+        {formData.testimonials.map((testimonial, index) => (
+          <div
+            key={index}
+            className="p-4 border rounded-lg space-y-4 bg-card"
+          >
+            <div className="flex items-center justify-between">
+              <h4 className="font-medium">
+                Testimonial {index + 1}
+              </h4>
+              {formData.testimonials.length > 1 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => removeTestimonial(index)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Type
+                </label>
+                <select
+                  value={testimonial.type}
+                  onChange={(e) =>
+                    handleTestimonialChange(index, "type", e.target.value)
+                  }
+                  className="w-full px-3 py-2 rounded-md border bg-input"
+                >
+                  <option value="text">Text Testimonial</option>
+                  <option value="video">Video Testimonial</option>
+                  <option value="photo">Photo Testimonial</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Customer Name
+                </label>
+                <Input
+                  placeholder="Enter customer name"
+                  value={testimonial.customerName}
+                  onChange={(e) =>
+                    handleTestimonialChange(
+                      index,
+                      "customerName",
+                      e.target.value
+                    )
+                  }
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Customer Location
+                </label>
+                <Input
+                  placeholder="e.g., Delhi, India"
+                  value={testimonial.customerLocation}
+                  onChange={(e) =>
+                    handleTestimonialChange(
+                      index,
+                      "customerLocation",
+                      e.target.value
+                    )
+                  }
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Customer Designation
+                </label>
+                <Input
+                  placeholder="e.g., Business Owner, Fleet Manager"
+                  value={testimonial.customerDesignation}
+                  onChange={(e) =>
+                    handleTestimonialChange(
+                      index,
+                      "customerDesignation",
+                      e.target.value
+                    )
+                  }
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Testimonial Content
+              </label>
+              <Textarea
+                placeholder="Enter customer testimonial..."
+                value={testimonial.content}
+                onChange={(e) =>
+                  handleTestimonialChange(index, "content", e.target.value)
+                }
+                rows={3}
+              />
+            </div>
+
+            {(testimonial.type === "video" || testimonial.type === "photo") && (
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  {testimonial.type === "video" ? "Video File" : "Photo File"}
+                </label>
+                {/* Show existing testimonial file if editing */}
+                {isEdit && editingProduct?.testimonials?.[index]?.file && 
+                  renderFilePreview(
+                    editingProduct.testimonials[index].file, 
+                    `Testimonial ${testimonial.type}`, 
+                    testimonial.type === "photo" ? "image" : "video"
+                  )
+                }
+                <Input
+                  type="file"
+                  accept={testimonial.type === "video" ? "video/*" : "image/*"}
+                  onChange={(e) =>
+                    handleTestimonialChange(
+                      index,
+                      "file",
+                      e.target.files?.[0] || null
+                    )
+                  }
+                />
+                {!isEdit && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Upload {testimonial.type} file for this testimonial
+                  </p>
+                )}
+                {isEdit && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Upload a new {testimonial.type} to replace the current one (optional)
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex gap-2 pt-4">
+        <Button
+          onClick={isEdit ? handleUpdateSubmit : handleSubmit}
+          className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
+          disabled={submitting}
+        >
+          {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+          {submitting
+            ? isEdit
+              ? "Updating..."
+              : "Adding..."
+            : isEdit
+            ? "Update Product"
+            : "Add Product"}
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() =>
+            isEdit ? setIsEditDialogOpen(false) : setIsAddDialogOpen(false)
+          }
+          disabled={submitting}
+        >
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
 
   if (loading) {
     return (
@@ -265,440 +1357,35 @@ export default function Products() {
           </p>
         </div>
 
-        {/* 👉 Add Product Dialog */}
+        {/* Add Product Dialog */}
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="vikram-button gap-2 w-fit">
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white gap-2 w-fit">
               <Plus className="h-4 w-4" />
               Add Product
             </Button>
           </DialogTrigger>
-          <DialogContent className="vikram-card max-w-2xl">
+          <DialogContent className="max-w-4xl">
             <DialogHeader>
-              <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-1">
-                      Product Name
-                    </label>
-                    <Input
-                      placeholder="Enter product name"
-                      value={formData.name}
-                      onChange={(e) => handleFormChange("name", e.target.value)}
-                    />
-                  </div>
-
-                  {/* Category */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">
-                      Category
-                    </label>
-                    <select
-                      value={formData.category}
-                      onChange={(e) =>
-                        handleFormChange("category", e.target.value)
-                      }
-                      className="w-full px-3 py-2 rounded-md border bg-input"
-                    >
-                      <option value="SCV Cargo">SCV Cargo</option>
-                      <option value="SCV Passenger">SCV Passenger</option>
-                      <option value="Pickup">Pickup</option>
-                    </select>
-                  </div>
-
-                  {/* Price */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">
-                      Price
-                    </label>
-                    <Input
-                      placeholder="e.g., 3.99 Lakh"
-                      value={formData.price}
-                      onChange={(e) =>
-                        handleFormChange("price", e.target.value)
-                      }
-                    />
-                  </div>
-
-                  {/* Description */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">
-                      Description
-                    </label>
-                    <Textarea
-                      placeholder="Enter product description..."
-                      value={formData.description}
-                      onChange={(e) =>
-                        handleFormChange("description", e.target.value)
-                      }
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">
-                      GVW
-                    </label>
-                    <Input
-                      placeholder="Enter GVW"
-                      value={formData.gvw}
-                      onChange={(e) => handleFormChange("gvw", e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">
-                      Engine
-                    </label>
-                    <Input
-                      placeholder="Enter Engine details"
-                      value={formData.engine}
-                      onChange={(e) =>
-                        handleFormChange("engine", e.target.value)
-                      }
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">
-                      Fuel Tank Capacity
-                    </label>
-                    <Input
-                      placeholder="Enter Fuel Tank Capacity"
-                      value={formData.fuelTankCapacity}
-                      onChange={(e) =>
-                        handleFormChange("fuelTankCapacity", e.target.value)
-                      }
-                    />
-                  </div>
-
-                  {/* File Inputs */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">
-                      Product Image
-                    </label>
-                    <Input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) =>
-                        handleFormChange("image", e.target.files?.[0] || null)
-                      }
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">
-                      Product Brochure (PDF)
-                    </label>
-                    <Input
-                      type="file"
-                      accept=".pdf"
-                      onChange={(e) =>
-                        handleFormChange(
-                          "brochure",
-                          e.target.files?.[0] || null
-                        )
-                      }
-                    />
-                  </div>
-
-                  {/* Buttons */}
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={handleSubmit}
-                      className="vikram-button flex items-center gap-2"
-                      disabled={submitting}
-                    >
-                      {submitting && (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      )}
-                      {submitting ? "Adding..." : "Add Product"}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => setIsAddDialogOpen(false)}
-                      disabled={submitting}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              </div>
               <DialogTitle>Add New Product</DialogTitle>
             </DialogHeader>
+            {renderProductForm()}
           </DialogContent>
         </Dialog>
+
+        {/* Edit Product Dialog */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="vikram-card max-w-2xl">
+          <DialogContent className="max-w-4xl">
             <DialogHeader>
               <DialogTitle>Edit Product</DialogTitle>
             </DialogHeader>
-
-            <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
-              <div className="space-y-4">
-                {/* Same form fields as Add */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Product Name
-                  </label>
-                  <Input
-                    placeholder="Enter product name"
-                    value={formData.name}
-                    onChange={(e) => handleFormChange("name", e.target.value)}
-                  />
-                </div>
-
-                {/* Category */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Category
-                  </label>
-                  <select
-                    value={formData.category}
-                    onChange={(e) =>
-                      handleFormChange("category", e.target.value)
-                    }
-                    className="w-full px-3 py-2 rounded-md border bg-input"
-                  >
-                    <option value="SCV Cargo">SCV Cargo</option>
-                    <option value="SCV Passenger">SCV Passenger</option>
-                    <option value="Pickup">Pickup</option>
-                  </select>
-                </div>
-
-                {/* Price */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Price
-                  </label>
-                  <Input
-                    placeholder="e.g., 3.99 Lakh"
-                    value={formData.price}
-                    onChange={(e) => handleFormChange("price", e.target.value)}
-                  />
-                </div>
-
-                {/* Description */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Description
-                  </label>
-                  <Textarea
-                    placeholder="Enter product description..."
-                    value={formData.description}
-                    onChange={(e) =>
-                      handleFormChange("description", e.target.value)
-                    }
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-1">GVW</label>
-                  <Input
-                    placeholder="Enter GVW"
-                    value={formData.gvw}
-                    onChange={(e) => handleFormChange("gvw", e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Engine
-                  </label>
-                  <Input
-                    placeholder="Enter Engine details"
-                    value={formData.engine}
-                    onChange={(e) => handleFormChange("engine", e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Fuel Tank Capacity
-                  </label>
-                  <Input
-                    placeholder="Enter Fuel Tank Capacity"
-                    value={formData.fuelTankCapacity}
-                    onChange={(e) =>
-                      handleFormChange("fuelTankCapacity", e.target.value)
-                    }
-                  />
-                </div>
-
-                {/* File inputs */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Product Image (upload to replace)
-                  </label>
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) =>
-                      handleFormChange("image", e.target.files?.[0] || null)
-                    }
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Product Brochure (upload to replace)
-                  </label>
-                  <Input
-                    type="file"
-                    accept=".pdf"
-                    onChange={(e) =>
-                      handleFormChange("brochure", e.target.files?.[0] || null)
-                    }
-                  />
-                </div>
-
-                {/* Buttons */}
-                <div className="flex gap-2">
-                  <Button
-                    onClick={handleUpdateSubmit}
-                    className="vikram-button flex items-center gap-2"
-                    disabled={submitting}
-                  >
-                    {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                    {submitting ? "Updating..." : "Update Product"}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsEditDialogOpen(false)}
-                    disabled={submitting}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            </div>
-            <div className="space-y-4">
-              {/* Same form fields as Add */}
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Product Name
-                </label>
-                <Input
-                  placeholder="Enter product name"
-                  value={formData.name}
-                  onChange={(e) => handleFormChange("name", e.target.value)}
-                />
-              </div>
-
-              {/* Category */}
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Category
-                </label>
-                <select
-                  value={formData.category}
-                  onChange={(e) => handleFormChange("category", e.target.value)}
-                  className="w-full px-3 py-2 rounded-md border bg-input"
-                >
-                  <option value="SCV Cargo">SCV Cargo</option>
-                  <option value="SCV Passenger">SCV Passenger</option>
-                  <option value="Pickup">Pickup</option>
-                </select>
-              </div>
-
-              {/* Price */}
-              <div>
-                <label className="block text-sm font-medium mb-1">Price</label>
-                <Input
-                  placeholder="e.g., 3.99 Lakh"
-                  value={formData.price}
-                  onChange={(e) => handleFormChange("price", e.target.value)}
-                />
-              </div>
-
-              {/* Description */}
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Description
-                </label>
-                <Textarea
-                  placeholder="Enter product description..."
-                  value={formData.description}
-                  onChange={(e) =>
-                    handleFormChange("description", e.target.value)
-                  }
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">GVW</label>
-                <Input
-                  placeholder="Enter GVW"
-                  value={formData.gvw}
-                  onChange={(e) => handleFormChange("gvw", e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Engine</label>
-                <Input
-                  placeholder="Enter Engine details"
-                  value={formData.engine}
-                  onChange={(e) => handleFormChange("engine", e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Fuel Tank Capacity
-                </label>
-                <Input
-                  placeholder="Enter Fuel Tank Capacity"
-                  value={formData.fuelTankCapacity}
-                  onChange={(e) =>
-                    handleFormChange("fuelTankCapacity", e.target.value)
-                  }
-                />
-              </div>
-
-              {/* File inputs */}
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Product Image (upload to replace)
-                </label>
-                <Input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) =>
-                    handleFormChange("image", e.target.files?.[0] || null)
-                  }
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Product Brochure (upload to replace)
-                </label>
-                <Input
-                  type="file"
-                  accept=".pdf"
-                  onChange={(e) =>
-                    handleFormChange("brochure", e.target.files?.[0] || null)
-                  }
-                />
-              </div>
-
-              {/* Buttons */}
-              <div className="flex gap-2">
-                <Button
-                  onClick={handleUpdateSubmit}
-                  className="vikram-button flex items-center gap-2"
-                  disabled={submitting}
-                >
-                  {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                  {submitting ? "Updating..." : "Update Product"}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setIsEditDialogOpen(false)}
-                  disabled={submitting}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
+            {renderProductForm(true)}
           </DialogContent>
         </Dialog>
       </div>
 
       {/* Filters */}
-      <Card className="vikram-card">
+      <Card>
         <CardContent className="pt-6">
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="relative flex-1">
@@ -730,7 +1417,7 @@ export default function Products() {
       </Card>
 
       {/* Products Table */}
-      <Card className="vikram-card">
+      <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Package className="h-5 w-5 text-primary" />
@@ -837,15 +1524,52 @@ export default function Products() {
                               onClick={() => {
                                 setEditingProduct(product);
                                 setFormData({
-                                  name: product.title,
+                                  name: product.title || "",
                                   category: product.category || "SCV Cargo",
-                                  price: product.price,
-                                  description: product.description,
-                                  gvw: product.gvw,
-                                  engine: product.engine,
-                                  fuelTankCapacity: product.fuelTankCapacity,
+                                  price: product.price || "",
+                                  description: product.description || "",
+                                  gvw: product.gvw || "",
+                                  engine: product.engine || "",
+                                  fuelType: product.fuelType || "",
+                                  gearBox: product.gearBox || "",
+                                  clutchDia: product.clutchDia || "",
+                                  torque: product.torque || "",
+                                  tyre: product.tyre || "",
+                                  fuelTankCapacity:
+                                    product.fuelTankCapacity || "",
+                                  cabinType: product.cabinType || "",
+                                  warranty: product.warranty || "",
+                                  applicationSuitability:
+                                    product.applicationSuitability || "",
+                                  payload: product.payload || "",
+                                  deckLength: product.deckLength || [""],
+                                  deckWidth: product.deckWidth || "",
+                                  bodyDimensions: product.bodyDimensions || "",
+                                  usp: product.usp || [""],
+                                  tco: product.tco || "",
+                                  profitMargin: product.profitMargin || "",
                                   image: null,
                                   brochure: null,
+                                  reviews: product.reviews || [
+                                    {
+                                      type: "text",
+                                      content: "",
+                                      file: null,
+                                      rating: 5,
+                                      customerName: "",
+                                      customerLocation: "",
+                                    },
+                                  ],
+                                  testimonials: product.testimonials || [
+                                    {
+                                      type: "text",
+                                      content: "",
+                                      file: null,
+                                      customerName: "",
+                                      customerLocation: "",
+                                      customerDesignation: "",
+                                    },
+                                  ],
                                 });
                                 setIsEditDialogOpen(true);
                               }}
@@ -864,6 +1588,8 @@ export default function Products() {
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
+
+                            {/* Brochure Button */}
                             {product.brochureFile && (
                               <Button
                                 variant="ghost"
@@ -884,6 +1610,7 @@ export default function Products() {
                               </Button>
                             )}
 
+                            {/* Delete Button */}
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
                                 <Button
@@ -894,7 +1621,7 @@ export default function Products() {
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
                               </AlertDialogTrigger>
-                              <AlertDialogContent className="vikram-card">
+                              <AlertDialogContent>
                                 <AlertDialogHeader>
                                   <AlertDialogTitle>
                                     Delete Product
