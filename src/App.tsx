@@ -15,6 +15,7 @@ import Services from "./pages/admin/Services";
 import Enquiries from "./pages/admin/Enquiries";
 import ProductDetails from "./pages/ProductDetails";
 import BannerImageUpload from "./pages/admin/BannerImageUpload";
+import Leads from "./pages/Leads";
 
 const queryClient = new QueryClient();
 
@@ -34,6 +35,8 @@ const App = () => (
             <Route path="launches" element={<NewLaunches />} />
             <Route path="services" element={<Services />} />
             <Route path="enquiries" element={<Enquiries />} />
+            <Route path="leads" element={<Leads />} />
+
             <Route path="products/:id" element={<ProductDetails />} />
             <Route path="banner" element={<BannerImageUpload />} />
           </Route>

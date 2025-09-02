@@ -37,6 +37,7 @@ const navigationItems = [
   { name: "New Launches", href: "/admin/launches", icon: Rocket },
   { name: "Services", href: "/admin/services", icon: Settings },
   { name: "Enquiries", href: "/admin/enquiries", icon: Mail },
+  { name: "Leads", href: "/admin/leads", icon: Users },
 ];
 
 export default function AdminLayout() {
