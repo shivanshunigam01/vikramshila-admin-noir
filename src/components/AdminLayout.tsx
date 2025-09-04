@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { MessageCircleQuestion } from "lucide-react";
 
 const navigationItems = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
@@ -37,6 +38,11 @@ const navigationItems = [
   { name: "New Launches", href: "/admin/launches", icon: Rocket },
   { name: "Services", href: "/admin/services", icon: Settings },
   { name: "Enquiries", href: "/admin/enquiries", icon: Mail },
+  {
+    name: "Grievances",
+    href: "/admin/grievances",
+    icon: MessageCircleQuestion,
+  },
   { name: "Leads", href: "/admin/leads", icon: Users },
 ];
 
