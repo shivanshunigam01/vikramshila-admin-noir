@@ -49,6 +49,7 @@ import {
   updateProduct,
 } from "@/services/productService";
 import { useNavigate } from "react-router-dom";
+import { deflateRaw } from "zlib";
 
 export default function Products() {
   const [products, setProducts] = useState([]);
@@ -117,6 +118,7 @@ export default function Products() {
     category: "SCV Cargo",
     price: "",
     description: "",
+    newLaunch: 0,
     gvw: "",
     engine: "",
     fuelType: "",
@@ -279,6 +281,7 @@ export default function Products() {
       fd.append("category", formData.category);
       fd.append("price", formData.price);
       fd.append("description", formData.description);
+      fd.append("newLaunch", formData.newLaunch.toString());
       fd.append("gvw", formData.gvw);
       fd.append("engine", formData.engine);
       fd.append("fuelType", formData.fuelType);
@@ -355,6 +358,7 @@ export default function Products() {
           category: "SCV Cargo",
           price: "",
           description: "",
+          newLaunch: 0,
           gvw: "",
           engine: "",
           fuelType: "",
@@ -520,6 +524,7 @@ export default function Products() {
       fd.append("category", formData.category);
       fd.append("price", formData.price);
       fd.append("description", formData.description);
+      fd.append("newLaunch", formData.newLaunch.toString());
       fd.append("gvw", formData.gvw);
       fd.append("engine", formData.engine);
       fd.append("fuelType", formData.fuelType);
@@ -744,6 +749,19 @@ export default function Products() {
             value={formData.description}
             onChange={(e) => handleFormChange("description", e.target.value)}
           />
+        </div>
+        <div className="space-y-4 border-b pb-4">
+          <h3 className="font-semibold text-lg">Launch Settings</h3>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={formData.newLaunch === 1}
+              onChange={(e) =>
+                handleFormChange("newLaunch", e.target.checked ? 1 : 0)
+              }
+            />
+            <span>Mark as New Launch</span>
+          </label>
         </div>
       </div>
 
@@ -1592,6 +1610,12 @@ export default function Products() {
                                   category: product.category || "SCV Cargo",
                                   price: product.price || "",
                                   description: product.description || "",
+                                  newLaunch:
+                                    typeof product.newLaunch === "number"
+                                      ? product.newLaunch
+                                      : product.newLaunch === true
+                                      ? 1
+                                      : 0,
                                   gvw: product.gvw || "",
                                   engine: product.engine || "",
                                   fuelType: product.fuelType || "",

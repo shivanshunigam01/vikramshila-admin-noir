@@ -103,6 +103,29 @@ export default function ProductDetails() {
     });
   };
 
+  const getBrochureUrl = (fileObj: any): string | null => {
+    if (!fileObj) return null;
+
+    if (typeof fileObj === "string") {
+      return fileObj.startsWith("http")
+        ? fileObj
+        : `${API_URL}/${fileObj.replace(/\\/g, "/")}`;
+    }
+
+    if (fileObj.url) {
+      return fileObj.url.startsWith("http")
+        ? fileObj.url
+        : `${API_URL}/${fileObj.url.replace(/\\/g, "/")}`;
+    }
+
+    if (fileObj.path) {
+      return fileObj.path.startsWith("http")
+        ? fileObj.path
+        : `${API_URL}/${fileObj.path.replace(/\\/g, "/")}`;
+    }
+
+    return null;
+  };
   // Helper function to check if a field has meaningful content
   const hasContent = (value) => {
     return value && value.toString().trim() !== "" && value !== "N/A";
@@ -143,9 +166,7 @@ export default function ProductDetails() {
     );
   }
 
-  const brochureUrl = product.brochureFile?.startsWith("http")
-    ? product.brochureFile
-    : `${API_URL}/${product.brochureFile?.replace(/\\/g, "/")}`;
+  const brochureUrl = getBrochureUrl(product.brochureFile);
 
   return (
     <div className="min-h-screen bg-black py-6">
@@ -285,7 +306,7 @@ export default function ProductDetails() {
 
                 {/* Quick Actions */}
                 <div className="flex gap-4 pt-4 border-t border-gray-800">
-                  {hasContent(product.brochureFile) && (
+                  {brochureUrl && (
                     <Button
                       className="flex-1 gap-2 bg-orange-600 hover:bg-orange-700 text-white shadow-md hover:shadow-lg transition-all duration-200"
                       onClick={() => window.open(brochureUrl, "_blank")}
