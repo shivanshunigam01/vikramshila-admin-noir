@@ -45,3 +45,18 @@ export const deleteProduct = async (id: string) => {
     throw error.response?.data || { message: "Failed to delete product" };
   }
 };
+
+export const downloadBrochureService = async (id: string) => {
+  try {
+    const res = await axiosInstance.get(
+      `${API_URL}/products/${id}/download-brochure`,
+      { responseType: "blob" } // important for file downloads
+    );
+    return {
+      data: res.data,
+      headers: res.headers,
+    };
+  } catch (error: any) {
+    throw error.response?.data || { message: "Failed to download brochure" };
+  }
+};

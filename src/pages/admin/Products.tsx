@@ -44,6 +44,7 @@ import {
 import {
   createProduct,
   deleteProduct,
+  downloadBrochureService,
   getProducts,
   updateProduct,
 } from "@/services/productService";
@@ -56,12 +57,59 @@ export default function Products() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
-  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
 
+  const [product, setProduct] = useState<any | null>(null);
+  const [downloadingBrochure, setDownloadingBrochure] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [downloading, setDownloading] = useState(false);
+
   const { toast } = useToast();
+
+  // ✅ Safe utility for brochure path
+  const handleDownloadBrochure = async (prod: any) => {
+    if (!prod?._id) {
+      alert("Brochure not available");
+      return;
+    }
+
+    setDownloading(true);
+
+    try {
+      const response = await downloadBrochureService(prod._id);
+
+      const blob = new Blob([response.data], {
+        type: response.headers["content-type"],
+      });
+      const url = window.URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = url;
+
+      // Try to parse filename from headers
+      let filename = "brochure.pdf";
+      const contentDisposition = response.headers["content-disposition"];
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="?(.+)"?/);
+        if (match && match[1]) filename = match[1];
+      } else if (prod.brochureFile?.originalName) {
+        filename = prod.brochureFile.originalName;
+      }
+
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      console.error("Download failed:", err);
+      alert(`Download failed: ${err.message}`);
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   // Enhanced form state with all fields including reviews and testimonials
   const [formData, setFormData] = useState({
@@ -585,14 +633,42 @@ export default function Products() {
       </div>
     );
   };
+  const getBrochureUrl = (fileObj: any): string | null => {
+    if (!fileObj) return null;
 
-  const renderFilePreview = (fileUrl, fileName, type = "file") => {
+    // If it's already a string URL
+    if (typeof fileObj === "string") {
+      return fileObj.startsWith("http") ? fileObj : `${API_URL}/${fileObj}`;
+    }
+
+    // If it's a File object (user just uploaded it)
+    if (fileObj instanceof File) {
+      return URL.createObjectURL(fileObj);
+    }
+
+    // If backend returned object with path or url
+    if (fileObj.url) {
+      return fileObj.url.startsWith("http")
+        ? fileObj.url
+        : `${API_URL}/${fileObj.url}`;
+    }
+    if (fileObj.path) {
+      const cleanPath = fileObj.path.replace(/\\/g, "/");
+      return cleanPath.startsWith("http")
+        ? cleanPath
+        : `${API_URL}/${cleanPath}`;
+    }
+
+    return null;
+  };
+  const renderFilePreview = (fileObj: any, fileName: string, type = "file") => {
+    const fileUrl = getBrochureUrl(fileObj);
     if (!fileUrl) return null;
 
-    const getFileName = (url) => {
+    const getFileName = (url: string) => {
       if (!url) return "File";
       const parts = url.split("/");
-      return parts[parts.length - 1].split("-").pop() || "File";
+      return parts[parts.length - 1] || "File";
     };
 
     return (
@@ -616,15 +692,6 @@ export default function Products() {
             </Button>
           </div>
         </div>
-        {(type === "image" || fileUrl.includes("image")) && (
-          <div className="mt-2">
-            <img
-              src={fileUrl}
-              alt="Preview"
-              className="max-w-32 max-h-32 object-cover rounded border border-gray-600"
-            />
-          </div>
-        )}
       </div>
     );
   };
@@ -948,9 +1015,13 @@ export default function Products() {
             <label className="block text-sm font-medium mb-1">
               Product Image
             </label>
-            {isEdit && editingProduct?.images?.length > 0 && 
-              renderFilePreview(editingProduct.images[0], "Product Image", "image")
-            }
+            {isEdit &&
+              editingProduct?.images?.length > 0 &&
+              renderFilePreview(
+                editingProduct.images[0],
+                "Product Image",
+                "image"
+              )}
             <Input
               type="file"
               accept="image/*"
@@ -974,9 +1045,13 @@ export default function Products() {
             <label className="block text-sm font-medium mb-1">
               Product Brochure (PDF)
             </label>
-            {isEdit && editingProduct?.brochureFile && 
-              renderFilePreview(editingProduct.brochureFile, "Product Brochure", "brochure")
-            }
+            {isEdit &&
+              editingProduct?.brochureFile &&
+              renderFilePreview(
+                editingProduct.brochureFile,
+                "Product Brochure",
+                "brochure"
+              )}
             <Input
               type="file"
               accept=".pdf"
@@ -1029,9 +1104,7 @@ export default function Products() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1">
-                  Type
-                </label>
+                <label className="block text-sm font-medium mb-1">Type</label>
                 <select
                   value={review.type}
                   onChange={(e) =>
@@ -1046,9 +1119,7 @@ export default function Products() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">
-                  Rating
-                </label>
+                <label className="block text-sm font-medium mb-1">Rating</label>
                 <div className="flex items-center gap-2">
                   {renderStars(review.rating, (rating) =>
                     handleReviewChange(index, "rating", rating)
@@ -1110,13 +1181,13 @@ export default function Products() {
                   {review.type === "video" ? "Video File" : "Photo File"}
                 </label>
                 {/* Show existing review file if editing */}
-                {isEdit && editingProduct?.reviews?.[index]?.file && 
+                {isEdit &&
+                  editingProduct?.reviews?.[index]?.file &&
                   renderFilePreview(
-                    editingProduct.reviews[index].file, 
-                    `Review ${review.type}`, 
+                    editingProduct.reviews[index].file,
+                    `Review ${review.type}`,
                     review.type === "photo" ? "image" : "video"
-                  )
-                }
+                  )}
                 <Input
                   type="file"
                   accept={review.type === "video" ? "video/*" : "image/*"}
@@ -1135,7 +1206,8 @@ export default function Products() {
                 )}
                 {isEdit && (
                   <p className="text-xs text-muted-foreground mt-1">
-                    Upload a new {review.type} to replace the current one (optional)
+                    Upload a new {review.type} to replace the current one
+                    (optional)
                   </p>
                 )}
               </div>
@@ -1147,9 +1219,7 @@ export default function Products() {
       {/* Customer Testimonials */}
       <div className="space-y-4 border-b pb-4">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-lg">
-            Customer Testimonials
-          </h3>
+          <h3 className="font-semibold text-lg">Customer Testimonials</h3>
           <Button
             type="button"
             variant="outline"
@@ -1162,14 +1232,9 @@ export default function Products() {
         </div>
 
         {formData.testimonials.map((testimonial, index) => (
-          <div
-            key={index}
-            className="p-4 border rounded-lg space-y-4 bg-card"
-          >
+          <div key={index} className="p-4 border rounded-lg space-y-4 bg-card">
             <div className="flex items-center justify-between">
-              <h4 className="font-medium">
-                Testimonial {index + 1}
-              </h4>
+              <h4 className="font-medium">Testimonial {index + 1}</h4>
               {formData.testimonials.length > 1 && (
                 <Button
                   type="button"
@@ -1184,9 +1249,7 @@ export default function Products() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1">
-                  Type
-                </label>
+                <label className="block text-sm font-medium mb-1">Type</label>
                 <select
                   value={testimonial.type}
                   onChange={(e) =>
@@ -1272,13 +1335,13 @@ export default function Products() {
                   {testimonial.type === "video" ? "Video File" : "Photo File"}
                 </label>
                 {/* Show existing testimonial file if editing */}
-                {isEdit && editingProduct?.testimonials?.[index]?.file && 
+                {isEdit &&
+                  editingProduct?.testimonials?.[index]?.file &&
                   renderFilePreview(
-                    editingProduct.testimonials[index].file, 
-                    `Testimonial ${testimonial.type}`, 
+                    editingProduct.testimonials[index].file,
+                    `Testimonial ${testimonial.type}`,
                     testimonial.type === "photo" ? "image" : "video"
-                  )
-                }
+                  )}
                 <Input
                   type="file"
                   accept={testimonial.type === "video" ? "video/*" : "image/*"}
@@ -1297,7 +1360,8 @@ export default function Products() {
                 )}
                 {isEdit && (
                   <p className="text-xs text-muted-foreground mt-1">
-                    Upload a new {testimonial.type} to replace the current one (optional)
+                    Upload a new {testimonial.type} to replace the current one
+                    (optional)
                   </p>
                 )}
               </div>
@@ -1588,25 +1652,19 @@ export default function Products() {
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
-
-                            {/* Brochure Button */}
                             {product.brochureFile && (
                               <Button
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8"
-                                onClick={() => {
-                                  let brochureUrl = product.brochureFile;
-                                  if (!brochureUrl.startsWith("http")) {
-                                    brochureUrl = `${API_URL}/${brochureUrl.replace(
-                                      /\\/g,
-                                      "/"
-                                    )}`;
-                                  }
-                                  window.open(brochureUrl, "_blank");
-                                }}
+                                onClick={() => handleDownloadBrochure(product)} // pass product here
+                                disabled={downloading}
                               >
-                                <FileText className="h-4 w-4" />
+                                {downloading ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <FileText className="h-4 w-4" />
+                                )}
                               </Button>
                             )}
 
