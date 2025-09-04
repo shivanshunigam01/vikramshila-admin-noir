@@ -729,6 +729,14 @@ export default function Products() {
               <option value="SCV Cargo">SCV Cargo</option>
               <option value="SCV Passenger">SCV Passenger</option>
               <option value="Pickup">Pickup</option>
+
+              {/* New categories */}
+              <option value="SCV Pickup">SCV Pickup</option>
+              <option value="LCV">LCV (Light Commercial Vehicle)</option>
+              <option value="ICV">ICV (Intermediate Commercial Vehicle)</option>
+              <option value="MCV">MCV (Medium Commercial Vehicle)</option>
+              <option value="Buses">Buses</option>
+              <option value="Winger">Winger</option>
             </select>
           </div>
 
