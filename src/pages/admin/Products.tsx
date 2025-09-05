@@ -66,6 +66,7 @@ export default function Products() {
   const [downloadingBrochure, setDownloadingBrochure] = useState(false);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
+  const [categories, setCategories] = useState<string[]>([]);
 
   const { toast } = useToast();
 
@@ -115,7 +116,7 @@ export default function Products() {
   // Enhanced form state with all fields including reviews and testimonials
   const [formData, setFormData] = useState({
     name: "",
-    category: "SCV Cargo",
+    category: "",
     price: "",
     description: "",
     newLaunch: 0,
@@ -169,6 +170,15 @@ export default function Products() {
         setLoading(true);
         const res = await getProducts();
         setProducts(res.data || []);
+
+        // ✅ Extract unique categories dynamically
+        const uniqueCategories = [
+          ...new Set(
+            (res.data || []).map((p: any) => p.category).filter(Boolean)
+          ),
+        ];
+        setCategories(uniqueCategories as string[]);
+
         toast({
           title: "Success",
           description: "Products loaded successfully",
@@ -1494,9 +1504,11 @@ export default function Products() {
                 className="px-3 py-2 rounded-md border bg-input text-sm"
               >
                 <option value="all">All Categories</option>
-                <option value="SCV Cargo">SCV Cargo</option>
-                <option value="SCV Passenger">SCV Passenger</option>
-                <option value="Pickup">Pickup</option>
+                {categories.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
               </select>
               <Button variant="outline" size="icon">
                 <Filter className="h-4 w-4" />
@@ -1573,7 +1585,7 @@ export default function Products() {
                         </td>
                         <td className="py-4 px-2">
                           <Badge variant="secondary">
-                            {getProductCategory(product)}
+                            ({product.category})
                           </Badge>
                         </td>
                         <td className="py-4 px-2">
@@ -1615,7 +1627,7 @@ export default function Products() {
                                 setEditingProduct(product);
                                 setFormData({
                                   name: product.title || "",
-                                  category: product.category || "SCV Cargo",
+                                  category: product.category,
                                   price: product.price || "",
                                   description: product.description || "",
                                   newLaunch:
