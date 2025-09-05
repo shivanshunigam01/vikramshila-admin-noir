@@ -236,9 +236,9 @@ export default function Products() {
       ?.toLowerCase()
       .includes(searchTerm.toLowerCase());
 
-    const productCategory = getProductCategory(product);
+    // ✅ directly use product.category
     const matchesCategory =
-      selectedCategory === "all" || productCategory === selectedCategory;
+      selectedCategory === "all" || product.category === selectedCategory;
 
     return matchesSearch && matchesCategory;
   });
@@ -1504,11 +1504,20 @@ export default function Products() {
                 className="px-3 py-2 rounded-md border bg-input text-sm"
               >
                 <option value="all">All Categories</option>
-                {categories.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
-                  </option>
-                ))}
+                <option value="SCV Cargo">SCV Cargo</option>
+                <option value="SCV Passenger">SCV Passenger</option>
+                <option value="Pickup">Pickup</option>
+
+                {/* New categories */}
+                <option value="SCV Pickup">SCV Pickup</option>
+                <option value="LCV">LCV (Light Commercial Vehicle)</option>
+                <option value="ICV">
+                  ICV (Intermediate Commercial Vehicle)
+                </option>
+                <option value="MCV">MCV (Medium Commercial Vehicle)</option>
+                <option value="Buses">Buses</option>
+                <option value="Winger">Winger</option>
+                <option value="Others">Others</option>
               </select>
               <Button variant="outline" size="icon">
                 <Filter className="h-4 w-4" />
