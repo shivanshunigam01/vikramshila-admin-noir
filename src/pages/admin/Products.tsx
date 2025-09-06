@@ -138,6 +138,7 @@ export default function Products() {
     usp: [""],
     tco: "",
     profitMargin: "",
+    seatAvailability: "",
     image: null,
     brochure: null,
     reviews: [
@@ -308,7 +309,7 @@ export default function Products() {
       fd.append("bodyDimensions", formData.bodyDimensions);
       fd.append("tco", formData.tco);
       fd.append("profitMargin", formData.profitMargin);
-
+      fd.append("seatAvailability", formData.seatAvailability || "");
       // Handle arrays
       formData.deckLength.forEach((item, index) => {
         if (item.trim()) fd.append(`deckLength[${index}]`, item);
@@ -387,6 +388,7 @@ export default function Products() {
           usp: [""],
           tco: "",
           profitMargin: "",
+          seatAvailability: "",
           image: null,
           brochure: null,
           reviews: [
@@ -758,6 +760,21 @@ export default function Products() {
               onChange={(e) => handleFormChange("price", e.target.value)}
             />
           </div>
+          {["SCV Passenger", "Pickup", "Buses"].includes(formData.category) && (
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Seat Availability
+              </label>
+              <Input
+                type="number"
+                placeholder="Enter number of seats"
+                value={formData.seatAvailability}
+                onChange={(e) =>
+                  handleFormChange("seatAvailability", e.target.value)
+                }
+              />
+            </div>
+          )}
         </div>
 
         <div>
@@ -1666,6 +1683,8 @@ export default function Products() {
                                   tco: product.tco || "",
                                   profitMargin: product.profitMargin || "",
                                   image: null,
+                                  seatAvailability:
+                                    product.seatAvailability || "",
                                   brochure: null,
                                   reviews: product.reviews || [
                                     {

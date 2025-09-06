@@ -476,6 +476,17 @@ export default function ProductDetails() {
                   Dimensions & Capacity
                 </h4>
 
+                {hasContent(product.seatAvailability) && (
+                  <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
+                    <span className="text-sm font-semibold text-gray-400 block mb-1">
+                      Seat Availability
+                    </span>
+                    <p className="text-base font-medium text-white flex items-center gap-2">
+                      <Package className="h-4 w-4 text-orange-500" />
+                      {product.seatAvailability}
+                    </p>
+                  </div>
+                )}
                 {hasContent(product.gvw) && (
                   <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
                     <span className="text-sm font-semibold text-gray-400 block mb-1">
