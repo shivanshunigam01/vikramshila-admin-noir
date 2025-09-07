@@ -616,7 +616,7 @@ export default function ProductDetails() {
                     <div className="bg-gray-800/50 p-5 rounded-lg border border-gray-700">
                       <h4 className="font-semibold mb-2 flex items-center gap-2 text-gray-300">
                         <Wrench className="h-5 w-5 text-orange-500" />
-                        Tyres Cost
+                        Tyres Cost (₹ per set)
                       </h4>
                       <p className="text-sm font-medium text-white">
                         ₹{formatCurrency(product.tyresCost)}

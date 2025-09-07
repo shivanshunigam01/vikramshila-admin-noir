@@ -851,7 +851,7 @@ export default function Products() {
             {/* Tyres Cost */}
             <div>
               <label className="block text-sm font-medium mb-1">
-                Tyres Cost
+                Tyres Cost (₹ per set)
               </label>
               <Input
                 type="number"
