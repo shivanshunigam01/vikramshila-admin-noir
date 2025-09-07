@@ -65,37 +65,45 @@ export default function Products() {
   const [product, setProduct] = useState<any | null>(null);
   const [downloadingBrochure, setDownloadingBrochure] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [downloading, setDownloading] = useState(false);
   const [categories, setCategories] = useState<string[]>([]);
+  const [downloadingById, setDownloadingById] = useState<
+    Record<string, boolean>
+  >({});
+
+  const setRowDownloading = (id: string, val: boolean) =>
+    setDownloadingById((prev) => ({ ...prev, [id]: val }));
 
   const { toast } = useToast();
 
   // ✅ Safe utility for brochure path
   const handleDownloadBrochure = async (prod: any) => {
-    if (!prod?._id) {
+    const id = prod?._id;
+    if (!id) {
       alert("Brochure not available");
       return;
     }
 
-    setDownloading(true);
-
+    setRowDownloading(id, true);
     try {
-      const response = await downloadBrochureService(prod._id);
+      const response = await downloadBrochureService(id); // ensure axios uses responseType: 'blob'
 
       const blob = new Blob([response.data], {
-        type: response.headers["content-type"],
+        type: response.headers["content-type"] || "application/pdf",
       });
       const url = window.URL.createObjectURL(blob);
 
       const link = document.createElement("a");
       link.href = url;
 
-      // Try to parse filename from headers
+      // filename parsing (handles quoted & unquoted)
       let filename = "brochure.pdf";
-      const contentDisposition = response.headers["content-disposition"];
-      if (contentDisposition) {
-        const match = contentDisposition.match(/filename="?(.+)"?/);
-        if (match && match[1]) filename = match[1];
+      const cd =
+        response.headers["content-disposition"] ||
+        response.headers["Content-Disposition"];
+      if (cd) {
+        const m = /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.exec(cd);
+        const raw = m?.[1] || m?.[2];
+        if (raw) filename = decodeURIComponent(raw);
       } else if (prod.brochureFile?.originalName) {
         filename = prod.brochureFile.originalName;
       }
@@ -107,9 +115,9 @@ export default function Products() {
       window.URL.revokeObjectURL(url);
     } catch (err: any) {
       console.error("Download failed:", err);
-      alert(`Download failed: ${err.message}`);
+      alert(`Download failed: ${err?.message || "Unknown error"}`);
     } finally {
-      setDownloading(false);
+      setRowDownloading(id, false);
     }
   };
 
@@ -139,6 +147,10 @@ export default function Products() {
     tco: "",
     profitMargin: "",
     seatAvailability: "",
+    mileage: "", // ✅ NEW
+    tyresCost: "", // ✅ NEW
+    freightRate: "", // ✅ NEW
+    tyreLife: "",
     image: null,
     brochure: null,
     reviews: [
@@ -310,6 +322,10 @@ export default function Products() {
       fd.append("tco", formData.tco);
       fd.append("profitMargin", formData.profitMargin);
       fd.append("seatAvailability", formData.seatAvailability || "");
+      fd.append("mileage", formData.mileage || "");
+      fd.append("tyresCost", formData.tyresCost || "");
+      fd.append("tyreLife", formData.tyreLife || "");
+      fd.append("freightRate", formData.freightRate || "");
       // Handle arrays
       formData.deckLength.forEach((item, index) => {
         if (item.trim()) fd.append(`deckLength[${index}]`, item);
@@ -389,6 +405,10 @@ export default function Products() {
           tco: "",
           profitMargin: "",
           seatAvailability: "",
+          mileage: "",
+          tyresCost: "",
+          tyreLife: "",
+          freightRate: "",
           image: null,
           brochure: null,
           reviews: [
@@ -553,7 +573,11 @@ export default function Products() {
       fd.append("bodyDimensions", formData.bodyDimensions);
       fd.append("tco", formData.tco);
       fd.append("profitMargin", formData.profitMargin);
-
+      fd.append("seatAvailability", formData.seatAvailability || "");
+      fd.append("mileage", formData.mileage || "");
+      fd.append("tyresCost", formData.tyresCost || "");
+      fd.append("tyreLife", formData.tyreLife || "");
+      fd.append("freightRate", formData.freightRate || "");
       // Handle arrays
       formData.deckLength.forEach((item, index) => {
         if (item.trim()) fd.append(`deckLength[${index}]`, item);
@@ -813,6 +837,42 @@ export default function Products() {
               onChange={(e) => handleFormChange("gvw", e.target.value)}
             />
           </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Mileage */}
+            <div>
+              <label className="block text-sm font-medium mb-1">Mileage</label>
+              <Input
+                placeholder="e.g., 18 km/l or 8 km/kg"
+                value={formData.mileage}
+                onChange={(e) => handleFormChange("mileage", e.target.value)}
+              />
+            </div>
+
+            {/* Tyres Cost */}
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Tyres Cost
+              </label>
+              <Input
+                type="number"
+                placeholder="e.g., 5000"
+                value={formData.tyresCost}
+                onChange={(e) => handleFormChange("tyresCost", e.target.value)}
+              />
+            </div>
+
+            {/* Tyre Life */}
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Tyre Life
+              </label>
+              <Input
+                placeholder="e.g., 40,000 km"
+                value={formData.tyreLife}
+                onChange={(e) => handleFormChange("tyreLife", e.target.value)}
+              />
+            </div>
+          </div>
 
           <div>
             <label className="block text-sm font-medium mb-1">Engine</label>
@@ -1054,6 +1114,16 @@ export default function Products() {
               placeholder="Enter profit margin details..."
               value={formData.profitMargin}
               onChange={(e) => handleFormChange("profitMargin", e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              Freight Rate
+            </label>
+            <Input
+              placeholder="e.g., ₹25/km"
+              value={formData.freightRate}
+              onChange={(e) => handleFormChange("freightRate", e.target.value)}
             />
           </div>
         </div>
@@ -1685,6 +1755,10 @@ export default function Products() {
                                   image: null,
                                   seatAvailability:
                                     product.seatAvailability || "",
+                                  mileage: product.mileage || "",
+                                  tyresCost: product.tyresCost || "",
+                                  tyreLife: product.tyreLife || "",
+                                  freightRate: product.freightRate || "",
                                   brochure: null,
                                   reviews: product.reviews || [
                                     {
@@ -1729,17 +1803,16 @@ export default function Products() {
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8"
-                                onClick={() => handleDownloadBrochure(product)} // pass product here
-                                disabled={downloading}
+                                onClick={() => handleDownloadBrochure(product)}
+                                disabled={!!downloadingById[product._id]}
                               >
-                                {downloading ? (
+                                {downloadingById[product._id] ? (
                                   <Loader2 className="h-4 w-4 animate-spin" />
                                 ) : (
                                   <FileText className="h-4 w-4" />
                                 )}
                               </Button>
                             )}
-
                             {/* Delete Button */}
                             <AlertDialog>
                               <AlertDialogTrigger asChild>

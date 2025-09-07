@@ -103,6 +103,18 @@ export default function ProductDetails() {
     });
   };
 
+  const formatCurrency = (val: any) => {
+    const n = Number(String(val).replace(/[^\d.]/g, ""));
+    return isNaN(n) ? val : n.toLocaleString("en-IN");
+  };
+
+  const formatPerKm = (val: any) => {
+    if (!hasContent(val)) return null;
+    const s = String(val).trim();
+    // allow inputs like "25", "25/km", "₹25/km"
+    if (s.includes("/km")) return s;
+    return `₹${formatCurrency(s)}/km`;
+  };
   const getBrochureUrl = (fileObj: any): string | null => {
     if (!fileObj) return null;
 
@@ -369,6 +381,17 @@ export default function ProductDetails() {
                     </p>
                   </div>
                 )}
+                {hasContent(product.mileage) && (
+                  <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
+                    <span className="text-sm font-semibold text-gray-400 block mb-1">
+                      Mileage
+                    </span>
+                    <p className="text-base font-medium text-white flex items-center gap-2">
+                      <Gauge className="h-4 w-4 text-orange-500" />
+                      {product.mileage}
+                    </p>
+                  </div>
+                )}
 
                 {hasContent(product.fuelType) && (
                   <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
@@ -423,6 +446,16 @@ export default function ProductDetails() {
                   <Settings className="h-5 w-5 text-orange-500" />
                   Transmission & Components
                 </h4>
+                {hasContent(product.tyreLife) && (
+                  <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
+                    <span className="text-sm font-semibold text-gray-400 block mb-1">
+                      Tyre Life
+                    </span>
+                    <p className="text-base font-medium text-white">
+                      {product.tyreLife}
+                    </p>
+                  </div>
+                )}
 
                 {hasContent(product.gearBox) && (
                   <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
@@ -573,6 +606,35 @@ export default function ProductDetails() {
                   <p className="text-sm font-medium text-blue-300">
                     {product.warranty}
                   </p>
+                </div>
+              )}
+              {/* Running Costs */}
+              {(hasContent(product.tyresCost) ||
+                hasContent(product.freightRate)) && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+                  {hasContent(product.tyresCost) && (
+                    <div className="bg-gray-800/50 p-5 rounded-lg border border-gray-700">
+                      <h4 className="font-semibold mb-2 flex items-center gap-2 text-gray-300">
+                        <Wrench className="h-5 w-5 text-orange-500" />
+                        Tyres Cost
+                      </h4>
+                      <p className="text-sm font-medium text-white">
+                        ₹{formatCurrency(product.tyresCost)}
+                      </p>
+                    </div>
+                  )}
+
+                  {hasContent(product.freightRate) && (
+                    <div className="bg-gray-800/50 p-5 rounded-lg border border-gray-700">
+                      <h4 className="font-semibold mb-2 flex items-center gap-2 text-gray-300">
+                        <Truck className="h-5 w-5 text-orange-500" />
+                        Freight Rate
+                      </h4>
+                      <p className="text-sm font-medium text-white">
+                        {formatPerKm(product.freightRate)}
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 
