@@ -1118,7 +1118,7 @@ export default function Products() {
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">
-              Freight Rate
+              Freight Rate (per ton/km)
             </label>
             <Input
               placeholder="e.g., ₹25/km"

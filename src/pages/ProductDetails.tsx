@@ -628,7 +628,7 @@ export default function ProductDetails() {
                     <div className="bg-gray-800/50 p-5 rounded-lg border border-gray-700">
                       <h4 className="font-semibold mb-2 flex items-center gap-2 text-gray-300">
                         <Truck className="h-5 w-5 text-orange-500" />
-                        Freight Rate
+                        Freight Rate (per ton/km)
                       </h4>
                       <p className="text-sm font-medium text-white">
                         {formatPerKm(product.freightRate)}
