@@ -38,7 +38,6 @@ import {
   Loader2,
   X,
   Star,
-  Download,
   ExternalLink,
 } from "lucide-react";
 import {
@@ -49,10 +48,9 @@ import {
   updateProduct,
 } from "@/services/productService";
 import { useNavigate } from "react-router-dom";
-import { deflateRaw } from "zlib";
 
 export default function Products() {
-  const [products, setProducts] = useState([]);
+  const [products, setProducts] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -60,7 +58,7 @@ export default function Products() {
   const [itemsPerPage] = useState(10);
   const [submitting, setSubmitting] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState(null);
+  const [editingProduct, setEditingProduct] = useState<any | null>(null);
 
   const [product, setProduct] = useState<any | null>(null);
   const [downloadingBrochure, setDownloadingBrochure] = useState(false);
@@ -74,6 +72,65 @@ export default function Products() {
     setDownloadingById((prev) => ({ ...prev, [id]: val }));
 
   const { toast } = useToast();
+
+  // Enhanced form state with all fields including reviews and testimonials
+  const [formData, setFormData] = useState<any>({
+    name: "",
+    category: "",
+    price: "",
+    description: "",
+    newLaunch: 0,
+    gvw: "",
+    engine: "",
+    fuelType: "",
+    gearBox: "",
+    clutchDia: "",
+    torque: "",
+    tyre: "",
+    fuelTankCapacity: "",
+    cabinType: "",
+    warranty: "",
+    applicationSuitability: "",
+    payload: "",
+    deckLength: [""],
+    deckWidth: "",
+    bodyDimensions: "",
+    usp: [""],
+    tco: "",
+    profitMargin: "",
+    seatAvailability: "",
+    mileage: "",
+    tyresCost: "",
+    freightRate: "",
+    tyreLife: "",
+    image: null,
+    brochure: null,
+    // ✅ NEW
+    monitoringFeatures: "",
+    driverComfort: "",
+    reviews: [
+      {
+        type: "text",
+        content: "",
+        file: null,
+        rating: 5,
+        customerName: "",
+        customerLocation: "",
+      },
+    ],
+    testimonials: [
+      {
+        type: "text",
+        content: "",
+        file: null,
+        customerName: "",
+        customerLocation: "",
+        customerDesignation: "",
+      },
+    ],
+  });
+
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
   // ✅ Safe utility for brochure path
   const handleDownloadBrochure = async (prod: any) => {
@@ -99,7 +156,7 @@ export default function Products() {
       let filename = "brochure.pdf";
       const cd =
         response.headers["content-disposition"] ||
-        response.headers["Content-Disposition"];
+        (response.headers as any)["Content-Disposition"];
       if (cd) {
         const m = /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.exec(cd);
         const raw = m?.[1] || m?.[2];
@@ -121,62 +178,6 @@ export default function Products() {
     }
   };
 
-  // Enhanced form state with all fields including reviews and testimonials
-  const [formData, setFormData] = useState({
-    name: "",
-    category: "",
-    price: "",
-    description: "",
-    newLaunch: 0,
-    gvw: "",
-    engine: "",
-    fuelType: "",
-    gearBox: "",
-    clutchDia: "",
-    torque: "",
-    tyre: "",
-    fuelTankCapacity: "",
-    cabinType: "",
-    warranty: "",
-    applicationSuitability: "",
-    payload: "",
-    deckLength: [""],
-    deckWidth: "",
-    bodyDimensions: "",
-    usp: [""],
-    tco: "",
-    profitMargin: "",
-    seatAvailability: "",
-    mileage: "", // ✅ NEW
-    tyresCost: "", // ✅ NEW
-    freightRate: "", // ✅ NEW
-    tyreLife: "",
-    image: null,
-    brochure: null,
-    reviews: [
-      {
-        type: "text",
-        content: "",
-        file: null,
-        rating: 5,
-        customerName: "",
-        customerLocation: "",
-      },
-    ],
-    testimonials: [
-      {
-        type: "text",
-        content: "",
-        file: null,
-        customerName: "",
-        customerLocation: "",
-        customerDesignation: "",
-      },
-    ],
-  });
-
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
-
   useEffect(() => {
     const fetchProducts = async () => {
       try {
@@ -196,8 +197,8 @@ export default function Products() {
           title: "Success",
           description: "Products loaded successfully",
         });
-      } catch (err) {
-        console.error("Failed to fetch products:", err.message || err);
+      } catch (err: any) {
+        console.error("Failed to fetch products:", err?.message || err);
         toast({
           title: "Error",
           description: "Failed to fetch products",
@@ -210,46 +211,31 @@ export default function Products() {
     fetchProducts();
   }, []);
 
-  const getProductCategory = (product) => {
-    const title = product.title?.toLowerCase() || "";
-    const description = product.description?.toLowerCase() || "";
-
-    if (title.includes("pickup") || description.includes("pickup")) {
-      return "Pickup";
-    } else if (
-      title.includes("passenger") ||
-      description.includes("passenger")
-    ) {
-      return "SCV Passenger";
-    } else {
-      return "SCV Cargo";
-    }
-  };
-
-  const formatPrice = (price) => {
+  const formatPrice = (price: number) => {
+    if (!price && price !== 0) return "-";
     if (price >= 100000) {
       return `${(price / 100000).toFixed(2)} Lakh`;
     }
-    return `${price.toLocaleString()}`;
+    return `${Number(price).toLocaleString()}`;
   };
 
-  const getImageUrl = (product) => {
+  const getImageUrl = (product: any) => {
     if (!product.images || product.images.length === 0) {
       return "/placeholder.svg";
     }
-
     const image = product.images[0];
-    if (image.startsWith("http")) return image;
-    const cleanPath = image.replace(/\\/g, "/");
+    if (typeof image === "string" && image.startsWith("http")) return image;
+    const asString =
+      typeof image === "string" ? image : image?.url || image?.path || "";
+    const cleanPath = (asString || "").replace(/\\/g, "/");
     return `${API_URL}/${cleanPath}`;
   };
 
   const filteredProducts = products.filter((product) => {
-    const matchesSearch = product.title
-      ?.toLowerCase()
-      .includes(searchTerm.toLowerCase());
+    const matchesSearch =
+      product.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.description?.toLowerCase().includes(searchTerm.toLowerCase());
 
-    // ✅ directly use product.category
     const matchesCategory =
       selectedCategory === "all" || product.category === selectedCategory;
 
@@ -267,10 +253,10 @@ export default function Products() {
     setCurrentPage(1);
   }, [searchTerm, selectedCategory]);
 
-  const handleDelete = async (id, name) => {
+  const handleDelete = async (id: string, name: string) => {
     try {
       const res = await deleteProduct(id);
-      if (res.success) {
+      if ((res as any).success) {
         setProducts((prev) => prev.filter((p) => p._id !== id));
         toast({
           title: "Success",
@@ -280,21 +266,21 @@ export default function Products() {
       } else {
         toast({
           title: "Error",
-          description: res.message || "Failed to delete product",
+          description: (res as any).message || "Failed to delete product",
           variant: "destructive",
         });
       }
-    } catch (err) {
-      console.error("Delete failed:", err.message || err);
+    } catch (err: any) {
+      console.error("Delete failed:", err?.message || err);
       toast({
         title: "Error",
-        description: err.message || "Failed to delete product",
+        description: err?.message || "Failed to delete product",
         variant: "destructive",
       });
     }
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: any) => {
     e.preventDefault();
     setSubmitting(true);
 
@@ -326,16 +312,20 @@ export default function Products() {
       fd.append("tyresCost", formData.tyresCost || "");
       fd.append("tyreLife", formData.tyreLife || "");
       fd.append("freightRate", formData.freightRate || "");
+      // ✅ NEW fields
+      fd.append("monitoringFeatures", formData.monitoringFeatures || "");
+      fd.append("driverComfort", formData.driverComfort || "");
+
       // Handle arrays
-      formData.deckLength.forEach((item, index) => {
-        if (item.trim()) fd.append(`deckLength[${index}]`, item);
+      formData.deckLength.forEach((item: string, index: number) => {
+        if (item?.trim()) fd.append(`deckLength[${index}]`, item);
       });
-      formData.usp.forEach((item, index) => {
-        if (item.trim()) fd.append(`usp[${index}]`, item);
+      formData.usp.forEach((item: string, index: number) => {
+        if (item?.trim()) fd.append(`usp[${index}]`, item);
       });
 
       // Handle reviews
-      formData.reviews.forEach((review, index) => {
+      formData.reviews.forEach((review: any, index: number) => {
         if (review.content || review.customerName) {
           fd.append(`reviews[${index}][type]`, review.type);
           fd.append(`reviews[${index}][content]`, review.content);
@@ -352,7 +342,7 @@ export default function Products() {
       });
 
       // Handle testimonials
-      formData.testimonials.forEach((testimonial, index) => {
+      formData.testimonials.forEach((testimonial: any, index: number) => {
         if (testimonial.content || testimonial.customerName) {
           fd.append(`testimonials[${index}][type]`, testimonial.type);
           fd.append(`testimonials[${index}][content]`, testimonial.content);
@@ -379,7 +369,7 @@ export default function Products() {
 
       const res = await createProduct(fd);
 
-      if (res.message === "Product created") {
+      if ((res as any).message === "Product created") {
         setFormData({
           name: "",
           category: "SCV Cargo",
@@ -411,6 +401,9 @@ export default function Products() {
           freightRate: "",
           image: null,
           brochure: null,
+          // ✅ NEW reset
+          monitoringFeatures: "",
+          driverComfort: "",
           reviews: [
             {
               type: "text",
@@ -439,11 +432,11 @@ export default function Products() {
       }
       setIsAddDialogOpen(false);
       window.location.reload();
-    } catch (err) {
-      console.error("Failed to create product:", err.message || err);
+    } catch (err: any) {
+      console.error("Failed to create product:", err?.message || err);
       toast({
         title: "Error",
-        description: err.message || "Failed to create product",
+        description: err?.message || "Failed to create product",
         variant: "destructive",
       });
     } finally {
@@ -451,47 +444,53 @@ export default function Products() {
     }
   };
 
-  const handleFormChange = (field, value) => {
-    setFormData((prev) => ({
+  const handleFormChange = (field: string, value: any) => {
+    setFormData((prev: any) => ({
       ...prev,
       [field]: value,
     }));
   };
 
-  const handleArrayChange = (field, index, value) => {
-    setFormData((prev) => ({
+  const handleArrayChange = (field: string, index: number, value: any) => {
+    setFormData((prev: any) => ({
       ...prev,
-      [field]: prev[field].map((item, i) => (i === index ? value : item)),
+      [field]: prev[field].map((item: any, i: number) =>
+        i === index ? value : item
+      ),
     }));
   };
 
-  const handleReviewChange = (index, field, value) => {
-    setFormData((prev) => ({
+  const handleReviewChange = (index: number, field: string, value: any) => {
+    setFormData((prev: any) => ({
       ...prev,
-      reviews: prev.reviews.map((review, i) =>
+      reviews: prev.reviews.map((review: any, i: number) =>
         i === index ? { ...review, [field]: value } : review
       ),
     }));
   };
 
-  const handleTestimonialChange = (index, field, value) => {
-    setFormData((prev) => ({
+  const handleTestimonialChange = (
+    index: number,
+    field: string,
+    value: any
+  ) => {
+    setFormData((prev: any) => ({
       ...prev,
-      testimonials: prev.testimonials.map((testimonial, i) =>
+      testimonials: prev.testimonials.map((testimonial: any, i: number) =>
         i === index ? { ...testimonial, [field]: value } : testimonial
       ),
     }));
   };
 
-  const addArrayItem = (field) => {
-    setFormData((prev) => ({
+  const addArrayItem = (field: string) => {
+    setFormData((prev: any) => ({
       ...prev,
       [field]: [...prev[field], ""],
     }));
   };
 
   const addReview = () => {
-    setFormData((prev) => ({
+    setFormData((prev: any) => ({
       ...prev,
       reviews: [
         ...prev.reviews,
@@ -508,7 +507,7 @@ export default function Products() {
   };
 
   const addTestimonial = () => {
-    setFormData((prev) => ({
+    setFormData((prev: any) => ({
       ...prev,
       testimonials: [
         ...prev.testimonials,
@@ -524,28 +523,30 @@ export default function Products() {
     }));
   };
 
-  const removeArrayItem = (field, index) => {
-    setFormData((prev) => ({
+  const removeArrayItem = (field: string, index: number) => {
+    setFormData((prev: any) => ({
       ...prev,
-      [field]: prev[field].filter((_, i) => i !== index),
+      [field]: prev[field].filter((_: any, i: number) => i !== index),
     }));
   };
 
-  const removeReview = (index) => {
-    setFormData((prev) => ({
+  const removeReview = (index: number) => {
+    setFormData((prev: any) => ({
       ...prev,
-      reviews: prev.reviews.filter((_, i) => i !== index),
+      reviews: prev.reviews.filter((_: any, i: number) => i !== index),
     }));
   };
 
-  const removeTestimonial = (index) => {
-    setFormData((prev) => ({
+  const removeTestimonial = (index: number) => {
+    setFormData((prev: any) => ({
       ...prev,
-      testimonials: prev.testimonials.filter((_, i) => i !== index),
+      testimonials: prev.testimonials.filter(
+        (_: any, i: number) => i !== index
+      ),
     }));
   };
 
-  const handleUpdateSubmit = async (e) => {
+  const handleUpdateSubmit = async (e: any) => {
     e.preventDefault();
     if (!editingProduct) return;
 
@@ -578,16 +579,20 @@ export default function Products() {
       fd.append("tyresCost", formData.tyresCost || "");
       fd.append("tyreLife", formData.tyreLife || "");
       fd.append("freightRate", formData.freightRate || "");
+      // ✅ NEW fields
+      fd.append("monitoringFeatures", formData.monitoringFeatures || "");
+      fd.append("driverComfort", formData.driverComfort || "");
+
       // Handle arrays
-      formData.deckLength.forEach((item, index) => {
-        if (item.trim()) fd.append(`deckLength[${index}]`, item);
+      formData.deckLength.forEach((item: string, index: number) => {
+        if (item?.trim()) fd.append(`deckLength[${index}]`, item);
       });
-      formData.usp.forEach((item, index) => {
-        if (item.trim()) fd.append(`usp[${index}]`, item);
+      formData.usp.forEach((item: string, index: number) => {
+        if (item?.trim()) fd.append(`usp[${index}]`, item);
       });
 
       // Handle reviews
-      formData.reviews.forEach((review, index) => {
+      formData.reviews.forEach((review: any, index: number) => {
         if (review.content || review.customerName) {
           fd.append(`reviews[${index}][type]`, review.type);
           fd.append(`reviews[${index}][content]`, review.content);
@@ -604,7 +609,7 @@ export default function Products() {
       });
 
       // Handle testimonials
-      formData.testimonials.forEach((testimonial, index) => {
+      formData.testimonials.forEach((testimonial: any, index: number) => {
         if (testimonial.content || testimonial.customerName) {
           fd.append(`testimonials[${index}][type]`, testimonial.type);
           fd.append(`testimonials[${index}][content]`, testimonial.content);
@@ -631,9 +636,11 @@ export default function Products() {
 
       const res = await updateProduct(editingProduct._id, fd);
 
-      if (res.success || res.message === "Product updated") {
+      if ((res as any).success || (res as any).message === "Product updated") {
         setProducts((prev) =>
-          prev.map((p) => (p._id === editingProduct._id ? res.data : p))
+          prev.map((p) =>
+            p._id === editingProduct._id ? (res as any).data : p
+          )
         );
         setIsEditDialogOpen(false);
         setEditingProduct(null);
@@ -643,11 +650,11 @@ export default function Products() {
         });
         window.location.reload();
       }
-    } catch (err) {
-      console.error("Failed to update product:", err.message || err);
+    } catch (err: any) {
+      console.error("Failed to update product:", err?.message || err);
       toast({
         title: "Error",
-        description: err.message || "Failed to update product",
+        description: err?.message || "Failed to update product",
         variant: "destructive",
       });
     } finally {
@@ -655,9 +662,12 @@ export default function Products() {
     }
   };
 
-  const handlePageChange = (page) => setCurrentPage(page);
+  const handlePageChange = (page: number) => setCurrentPage(page);
 
-  const renderStars = (rating, onRatingChange = null) => {
+  const renderStars = (
+    rating: number,
+    onRatingChange: ((n: number) => void) | null = null
+  ) => {
     return (
       <div className="flex items-center gap-1">
         {[1, 2, 3, 4, 5].map((star) => (
@@ -674,6 +684,7 @@ export default function Products() {
       </div>
     );
   };
+
   const getBrochureUrl = (fileObj: any): string | null => {
     if (!fileObj) return null;
 
@@ -683,7 +694,7 @@ export default function Products() {
     }
 
     // If it's a File object (user just uploaded it)
-    if (fileObj instanceof File) {
+    if (typeof File !== "undefined" && fileObj instanceof File) {
       return URL.createObjectURL(fileObj);
     }
 
@@ -702,6 +713,7 @@ export default function Products() {
 
     return null;
   };
+
   const renderFilePreview = (fileObj: any, fileName: string, type = "file") => {
     const fileUrl = getBrochureUrl(fileObj);
     if (!fileUrl) return null;
@@ -765,8 +777,6 @@ export default function Products() {
               <option value="SCV Cargo">SCV Cargo</option>
               <option value="SCV Passenger">SCV Passenger</option>
               <option value="Pickup">Pickup</option>
-
-              {/* New categories */}
               <option value="SCV Pickup">SCV Pickup</option>
               <option value="LCV">LCV (Light Commercial Vehicle)</option>
               <option value="ICV">ICV (Intermediate Commercial Vehicle)</option>
@@ -809,6 +819,7 @@ export default function Products() {
             onChange={(e) => handleFormChange("description", e.target.value)}
           />
         </div>
+
         <div className="space-y-4 border-b pb-4">
           <h3 className="font-semibold text-lg">Launch Settings</h3>
           <label className="flex items-center gap-2">
@@ -837,6 +848,7 @@ export default function Products() {
               onChange={(e) => handleFormChange("gvw", e.target.value)}
             />
           </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Mileage */}
             <div>
@@ -1031,7 +1043,7 @@ export default function Products() {
           </Button>
         </div>
 
-        {formData.deckLength.map((length, index) => (
+        {formData.deckLength.map((length: string, index: number) => (
           <div key={index} className="flex gap-2">
             <Input
               placeholder="Enter deck length option"
@@ -1069,7 +1081,7 @@ export default function Products() {
           </Button>
         </div>
 
-        {formData.usp.map((point, index) => (
+        {formData.usp.map((point: string, index: number) => (
           <div key={index} className="flex gap-2">
             <Input
               placeholder="Enter USP point"
@@ -1116,6 +1128,7 @@ export default function Products() {
               onChange={(e) => handleFormChange("profitMargin", e.target.value)}
             />
           </div>
+
           <div>
             <label className="block text-sm font-medium mb-1">
               Freight Rate (per ton/km)
@@ -1124,6 +1137,44 @@ export default function Products() {
               placeholder="e.g., ₹25/km"
               value={formData.freightRate}
               onChange={(e) => handleFormChange("freightRate", e.target.value)}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* ✅ Comfort & Monitoring */}
+      <div className="space-y-4 border-b pb-4">
+        <h3 className="font-semibold text-lg">Comfort & Monitoring</h3>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              Monitoring Features
+            </label>
+            <Textarea
+              placeholder="e.g., Telematics, GPS tracking, Fuel monitoring, Real-time alerts, Immobilizer"
+              value={formData.monitoringFeatures}
+              onChange={(e) =>
+                handleFormChange("monitoringFeatures", e.target.value)
+              }
+              rows={3}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              Driver Comfort (0–10)
+            </label>
+            <input
+              type="number"
+              min={0}
+              max={10}
+              placeholder="Rate 0-10"
+              value={formData.driverComfort || ""}
+              onChange={(e) =>
+                handleFormChange("driverComfort", Number(e.target.value))
+              }
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-black focus:border-blue-500 focus:ring focus:ring-blue-500 focus:ring-opacity-50"
             />
           </div>
         </div>
@@ -1206,7 +1257,7 @@ export default function Products() {
           </Button>
         </div>
 
-        {formData.reviews.map((review, index) => (
+        {formData.reviews.map((review: any, index: number) => (
           <div
             key={index}
             className="p-4 border border-gray-700 rounded-lg space-y-4 bg-gray-900"
@@ -1303,7 +1354,6 @@ export default function Products() {
                 <label className="block text-sm font-medium mb-1">
                   {review.type === "video" ? "Video File" : "Photo File"}
                 </label>
-                {/* Show existing review file if editing */}
                 {isEdit &&
                   editingProduct?.reviews?.[index]?.file &&
                   renderFilePreview(
@@ -1354,7 +1404,7 @@ export default function Products() {
           </Button>
         </div>
 
-        {formData.testimonials.map((testimonial, index) => (
+        {formData.testimonials.map((testimonial: any, index: number) => (
           <div key={index} className="p-4 border rounded-lg space-y-4 bg-card">
             <div className="flex items-center justify-between">
               <h4 className="font-medium">Testimonial {index + 1}</h4>
@@ -1457,7 +1507,6 @@ export default function Products() {
                 <label className="block text-sm font-medium mb-1">
                   {testimonial.type === "video" ? "Video File" : "Photo File"}
                 </label>
-                {/* Show existing testimonial file if editing */}
                 {isEdit &&
                   editingProduct?.testimonials?.[index]?.file &&
                   renderFilePreview(
@@ -1530,6 +1579,12 @@ export default function Products() {
     );
   }
 
+  // Utility to truncate long text for table cells
+  const truncate = (str?: string, n = 40) => {
+    if (!str) return "-";
+    return str.length > n ? str.slice(0, n) + "…" : str;
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -1594,8 +1649,6 @@ export default function Products() {
                 <option value="SCV Cargo">SCV Cargo</option>
                 <option value="SCV Passenger">SCV Passenger</option>
                 <option value="Pickup">Pickup</option>
-
-                {/* New categories */}
                 <option value="SCV Pickup">SCV Pickup</option>
                 <option value="LCV">LCV (Light Commercial Vehicle)</option>
                 <option value="ICV">
@@ -1643,6 +1696,12 @@ export default function Products() {
                         Price
                       </th>
                       <th className="text-left py-3 px-2 font-medium text-muted-foreground">
+                        Monitoring Features
+                      </th>
+                      <th className="text-left py-3 px-2 font-medium text-muted-foreground">
+                        Driver Comfort
+                      </th>
+                      <th className="text-left py-3 px-2 font-medium text-muted-foreground">
                         Status
                       </th>
                       <th className="text-left py-3 px-2 font-medium text-muted-foreground">
@@ -1654,7 +1713,7 @@ export default function Products() {
                     </tr>
                   </thead>
                   <tbody>
-                    {currentProducts.map((product) => (
+                    {currentProducts.map((product: any) => (
                       <tr
                         key={product._id}
                         className="border-b border-border/50 hover:bg-muted/30"
@@ -1667,7 +1726,8 @@ export default function Products() {
                                 alt={product.title || "Product image"}
                                 className="w-full h-full object-cover"
                                 onError={(e) => {
-                                  e.currentTarget.src = "/placeholder.svg";
+                                  (e.currentTarget as HTMLImageElement).src =
+                                    "/placeholder.svg";
                                 }}
                               />
                             </div>
@@ -1679,19 +1739,38 @@ export default function Products() {
                             </div>
                           </div>
                         </td>
+
                         <td className="py-4 px-2">
                           <Badge variant="secondary">
                             ({product.category})
                           </Badge>
                         </td>
+
                         <td className="py-4 px-2">
                           <div className="flex items-center gap-1">
                             <IndianRupee className="h-3 w-3" />
                             <span className="font-medium">
-                              {formatPrice(product.price)}
+                              {formatPrice(Number(product.price))}
                             </span>
                           </div>
                         </td>
+
+                        {/* ✅ Monitoring Features */}
+                        <td
+                          className="py-4 px-2 text-sm"
+                          title={product.monitoringFeatures || ""}
+                        >
+                          {truncate(product.monitoringFeatures, 50)}
+                        </td>
+
+                        {/* ✅ Driver Comfort */}
+                        <td
+                          className="py-4 px-2 text-sm"
+                          title={product.driverComfort || ""}
+                        >
+                          {truncate(product.driverComfort, 50)}
+                        </td>
+
                         <td className="py-4 px-2">
                           <Badge
                             variant={
@@ -1705,14 +1784,18 @@ export default function Products() {
                                 : ""
                             }
                           >
-                            {product.status}
+                            {product.status || "inactive"}
                           </Badge>
                         </td>
+
                         <td className="py-4 px-2 text-sm text-muted-foreground">
-                          {new Date(product.createdAt).toLocaleDateString(
-                            "en-IN"
-                          )}
+                          {product.createdAt
+                            ? new Date(product.createdAt).toLocaleDateString(
+                                "en-IN"
+                              )
+                            : "-"}
                         </td>
+
                         <td className="py-4 px-2">
                           <div className="flex items-center gap-1 justify-end">
                             <Button
@@ -1760,6 +1843,10 @@ export default function Products() {
                                   tyreLife: product.tyreLife || "",
                                   freightRate: product.freightRate || "",
                                   brochure: null,
+                                  // ✅ Prefill new fields
+                                  monitoringFeatures:
+                                    product.monitoringFeatures || "",
+                                  driverComfort: product.driverComfort || "",
                                   reviews: product.reviews || [
                                     {
                                       type: "text",
@@ -1798,6 +1885,7 @@ export default function Products() {
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
+
                             {product.brochureFile && (
                               <Button
                                 variant="ghost"
@@ -1813,6 +1901,7 @@ export default function Products() {
                                 )}
                               </Button>
                             )}
+
                             {/* Delete Button */}
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
@@ -1878,14 +1967,12 @@ export default function Products() {
                     <div className="flex items-center gap-1">
                       {Array.from({ length: totalPages }, (_, i) => i + 1).map(
                         (page) => {
-                          // Show first page, last page, current page, and pages around current
                           const showPage =
                             page === 1 ||
                             page === totalPages ||
                             Math.abs(page - currentPage) <= 1;
 
                           if (!showPage) {
-                            // Show ellipsis
                             if (page === 2 && currentPage > 4) {
                               return (
                                 <span

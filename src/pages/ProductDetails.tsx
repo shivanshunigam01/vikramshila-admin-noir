@@ -30,12 +30,13 @@ import {
   Shield,
   ThumbsUp,
   Quote,
+  Eye, // added for Monitoring Features icon
 } from "lucide-react";
 import { useParams, useNavigate } from "react-router-dom";
 
 export default function ProductDetails() {
   const { id } = useParams();
-  const [product, setProduct] = useState(null);
+  const [product, setProduct] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState(0);
   const navigate = useNavigate();
@@ -49,7 +50,7 @@ export default function ProductDetails() {
         const res = await fetch(`${API_URL}/products/${id}`);
         const data = await res.json();
         setProduct(data.data);
-      } catch (err) {
+      } catch (err: any) {
         console.error("Failed to fetch product:", err.message || err);
       } finally {
         setLoading(false);
@@ -59,43 +60,36 @@ export default function ProductDetails() {
     fetchProduct();
   }, [id]);
 
-  const formatPrice = (price) => {
+  const formatPrice = (price: any) => {
     if (!price) return "N/A";
-    // If price is already a formatted string (like "3.99 Lakh")
-    if (
-      typeof price === "string" &&
-      (price.includes("Lakh") || price.includes("Crore"))
-    ) {
+    if (typeof price === "string" && (price.includes("Lakh") || price.includes("Crore"))) {
       return price;
     }
-    // If price is a number
     const numPrice = parseFloat(price.toString().replace(/[^\d.]/g, ""));
-    if (isNaN(numPrice)) return price; // Return original if can't parse
+    if (isNaN(numPrice)) return price;
     if (numPrice >= 100000) {
       return `${(numPrice / 100000).toFixed(2)} Lakh`;
     }
     return `${numPrice.toLocaleString()}`;
   };
 
-  const renderStars = (rating) => {
+  const renderStars = (rating: any) => {
     const numRating = parseInt(rating) || 0;
     return Array.from({ length: 5 }, (_, i) => (
       <Star
         key={i}
-        className={`h-4 w-4 ${
-          i < numRating ? "text-yellow-400 fill-yellow-400" : "text-gray-600"
-        }`}
+        className={`h-4 w-4 ${i < numRating ? "text-yellow-400 fill-yellow-400" : "text-gray-600"}`}
       />
     ));
   };
 
-  const getImageUrl = (imagePath) => {
+  const getImageUrl = (imagePath?: string) => {
     if (!imagePath) return "/placeholder.svg";
     if (imagePath.startsWith("http")) return imagePath;
     return `${API_URL}/${imagePath.replace(/\\/g, "/")}`;
   };
 
-  const formatDate = (dateString) => {
+  const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-IN", {
       year: "numeric",
       month: "long",
@@ -111,10 +105,10 @@ export default function ProductDetails() {
   const formatPerKm = (val: any) => {
     if (!hasContent(val)) return null;
     const s = String(val).trim();
-    // allow inputs like "25", "25/km", "₹25/km"
     if (s.includes("/km")) return s;
     return `₹${formatCurrency(s)}/km`;
   };
+
   const getBrochureUrl = (fileObj: any): string | null => {
     if (!fileObj) return null;
 
@@ -138,10 +132,24 @@ export default function ProductDetails() {
 
     return null;
   };
-  // Helper function to check if a field has meaningful content
-  const hasContent = (value) => {
+
+  // Helper: check meaningful content
+  const hasContent = (value: any) => {
     return value && value.toString().trim() !== "" && value !== "N/A";
   };
+
+  // NEW helpers for driverComfort + monitoringFeatures
+  const formatComfort = (val: any) => {
+    if (!hasContent(val)) return null;
+    const n = Number(String(val).replace(/[^\d.]/g, ""));
+    if (isNaN(n)) return String(val);
+    const capped = Math.max(0, Math.min(10, n));
+    return `${capped} / 10`;
+  };
+
+  const monitoringList: string[] = Array.isArray(product?.monitoringFeatures)
+    ? product.monitoringFeatures.filter((x: any) => hasContent(x))
+    : [];
 
   if (loading) {
     return (
@@ -159,9 +167,7 @@ export default function ProductDetails() {
       <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="text-center py-12">
           <Package className="h-16 w-16 text-gray-600 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold mb-2 text-white">
-            Product not found
-          </h3>
+          <h3 className="text-xl font-semibold mb-2 text-white">Product not found</h3>
           <p className="text-gray-400 mb-6">
             The requested product could not be found or may have been removed.
           </p>
@@ -201,9 +207,7 @@ export default function ProductDetails() {
               <CardContent className="p-0">
                 <div className="aspect-square bg-gradient-to-br from-gray-800 to-gray-900 relative overflow-hidden">
                   <img
-                    src={getImageUrl(
-                      product.images?.[selectedImage] || product.images?.[0]
-                    )}
+                    src={getImageUrl(product.images?.[selectedImage] || product.images?.[0])}
                     alt={product.title}
                     className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
                   />
@@ -215,11 +219,11 @@ export default function ProductDetails() {
                   )}
                 </div>
 
-                {/* Image Thumbnails */}
+                {/* Thumbnails */}
                 {product.images && product.images.length > 1 && (
                   <div className="p-4 bg-gray-900">
                     <div className="flex gap-2 overflow-x-auto">
-                      {product.images.map((image, index) => (
+                      {product.images.map((image: string, index: number) => (
                         <button
                           key={index}
                           onClick={() => setSelectedImage(index)}
@@ -289,10 +293,10 @@ export default function ProductDetails() {
                   </div>
                 )}
 
-                {/* Key Features/USP */}
+                {/* Key Features */}
                 {product.usp &&
                   product.usp.length > 0 &&
-                  product.usp.some((point) => hasContent(point)) && (
+                  product.usp.some((point: any) => hasContent(point)) && (
                     <div>
                       <h3 className="font-semibold text-lg mb-4 flex items-center gap-2 text-white">
                         <Award className="h-5 w-5 text-orange-500" />
@@ -300,8 +304,8 @@ export default function ProductDetails() {
                       </h3>
                       <div className="grid gap-3">
                         {product.usp
-                          .filter((point) => hasContent(point))
-                          .map((point, index) => (
+                          .filter((point: any) => hasContent(point))
+                          .map((point: any, index: number) => (
                             <div
                               key={index}
                               className="flex items-start gap-3 p-3 bg-green-900/30 rounded-lg border border-green-800/50"
@@ -446,6 +450,7 @@ export default function ProductDetails() {
                   <Settings className="h-5 w-5 text-orange-500" />
                   Transmission & Components
                 </h4>
+
                 {hasContent(product.tyreLife) && (
                   <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
                     <span className="text-sm font-semibold text-gray-400 block mb-1">
@@ -567,22 +572,18 @@ export default function ProductDetails() {
                   </div>
                 )}
 
-                {/* Deck Length Options */}
                 {product.deckLength &&
                   product.deckLength.length > 0 &&
-                  product.deckLength.some((length) => hasContent(length)) && (
+                  product.deckLength.some((length: any) => hasContent(length)) && (
                     <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
                       <span className="text-sm font-semibold text-gray-400 block mb-2">
                         Available Deck Lengths
                       </span>
                       <div className="space-y-2">
                         {product.deckLength
-                          .filter((length) => hasContent(length))
-                          .map((length, index) => (
-                            <div
-                              key={index}
-                              className="flex items-center gap-2"
-                            >
+                          .filter((length: any) => hasContent(length))
+                          .map((length: any, index: number) => (
+                            <div key={index} className="flex items-center gap-2">
                               <div className="w-2 h-2 rounded-full bg-orange-500" />
                               <span className="text-sm font-medium text-white">
                                 {length} mm
@@ -595,6 +596,68 @@ export default function ProductDetails() {
               </div>
             </div>
 
+            {/* NEW: Driver Comfort & Monitoring */}
+            {(hasContent(product.driverComfort) || monitoringList.length > 0) && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8 pt-8 border-t border-gray-700">
+                {hasContent(product.driverComfort) && (
+                  <div className="bg-rose-900/30 p-5 rounded-lg border border-rose-800/50">
+                    <h4 className="font-semibold mb-3 flex items-center gap-2 text-rose-300">
+                      <ThumbsUp className="h-5 w-5" />
+                      Driver Comfort
+                    </h4>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-medium text-rose-200">
+                        {formatComfort(product.driverComfort)}
+                      </span>
+                      {/* Progress bar */}
+                      {Number(String(product.driverComfort).replace(/[^\d.]/g, "")) >= 0 && (
+                        <div className="flex-1 h-2 bg-gray-800 rounded-full overflow-hidden">
+                          <div
+                            className="h-2 bg-rose-500"
+                            style={{
+                              width: `${Math.min(
+                                100,
+                                Math.max(
+                                  0,
+                                  (Number(String(product.driverComfort).replace(/[^\d.]/g, "")) / 10) *
+                                    100
+                                )
+                              )}%`,
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-xs text-rose-200/80 mt-2">
+                      Higher score indicates better in-cabin comfort (AC, power steering, seating ergonomics, etc.).
+                    </p>
+                  </div>
+                )}
+
+                {monitoringList.length > 0 && (
+                  <div className="bg-cyan-900/30 p-5 rounded-lg border border-cyan-800/50">
+                    <h4 className="font-semibold mb-3 flex items-center gap-2 text-cyan-300">
+                      <Eye className="h-5 w-5" />
+                      Monitoring Features
+                    </h4>
+                    <div className="flex flex-wrap gap-2">
+                      {monitoringList.map((feat, idx) => (
+                        <span
+                          key={idx}
+                          className="text-xs bg-gray-800/70 text-cyan-200 border border-cyan-700 px-3 py-1 rounded-full"
+                        >
+                          {feat}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="text-xs text-cyan-200/80 mt-2">
+                      Examples: FleetEdge, driver monitoring, telematics, geo-fencing, live fuel tracking.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Additional Information Row */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8 pt-8 border-t border-gray-700">
               {hasContent(product.warranty) && (
@@ -603,14 +666,11 @@ export default function ProductDetails() {
                     <Shield className="h-5 w-5" />
                     Warranty
                   </h4>
-                  <p className="text-sm font-medium text-blue-300">
-                    {product.warranty}
-                  </p>
+                  <p className="text-sm font-medium text-blue-300">{product.warranty}</p>
                 </div>
               )}
-              {/* Running Costs */}
-              {(hasContent(product.tyresCost) ||
-                hasContent(product.freightRate)) && (
+
+              {(hasContent(product.tyresCost) || hasContent(product.freightRate)) && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
                   {hasContent(product.tyresCost) && (
                     <div className="bg-gray-800/50 p-5 rounded-lg border border-gray-700">
@@ -618,9 +678,7 @@ export default function ProductDetails() {
                         <Wrench className="h-5 w-5 text-orange-500" />
                         Tyres Cost (₹ per set)
                       </h4>
-                      <p className="text-sm font-medium text-white">
-                        ₹{formatCurrency(product.tyresCost)}
-                      </p>
+                      <p className="text-sm font-medium text-white">₹{formatCurrency(product.tyresCost)}</p>
                     </div>
                   )}
 
@@ -630,9 +688,7 @@ export default function ProductDetails() {
                         <Truck className="h-5 w-5 text-orange-500" />
                         Freight Rate (per ton/km)
                       </h4>
-                      <p className="text-sm font-medium text-white">
-                        {formatPerKm(product.freightRate)}
-                      </p>
+                      <p className="text-sm font-medium text-white">{formatPerKm(product.freightRate)}</p>
                     </div>
                   )}
                 </div>
@@ -644,9 +700,7 @@ export default function ProductDetails() {
                     <Target className="h-5 w-5" />
                     Application Suitability
                   </h4>
-                  <p className="text-sm font-medium text-green-300">
-                    {product.applicationSuitability}
-                  </p>
+                  <p className="text-sm font-medium text-green-300">{product.applicationSuitability}</p>
                 </div>
               )}
             </div>
@@ -705,7 +759,7 @@ export default function ProductDetails() {
             </CardHeader>
             <CardContent>
               <div className="grid gap-6">
-                {product.reviews.map((review, index) => (
+                {product.reviews.map((review: any, index: number) => (
                   <div
                     key={index}
                     className="border border-gray-700 rounded-xl p-6 bg-gradient-to-r from-gray-800/50 to-gray-900/50 hover:shadow-md hover:shadow-orange-500/10 transition-shadow duration-200"
@@ -717,9 +771,7 @@ export default function ProductDetails() {
                         </div>
                         <div>
                           <div className="font-semibold text-white text-base">
-                            {hasContent(review.customerName)
-                              ? review.customerName
-                              : "Anonymous Customer"}
+                            {hasContent(review.customerName) ? review.customerName : "Anonymous Customer"}
                           </div>
                           {hasContent(review.customerLocation) && (
                             <div className="flex items-center gap-1 text-sm text-gray-400 mt-1">
@@ -738,19 +790,10 @@ export default function ProductDetails() {
                           </span>
                         </div>
                         {review.type && (
-                          <Badge
-                            variant="outline"
-                            className="text-xs bg-gray-800 border-gray-600 text-gray-300"
-                          >
-                            {review.type === "video" && (
-                              <Video className="h-3 w-3 mr-1" />
-                            )}
-                            {review.type === "photo" && (
-                              <Package className="h-3 w-3 mr-1" />
-                            )}
-                            {review.type === "text" && (
-                              <MessageSquare className="h-3 w-3 mr-1" />
-                            )}
+                          <Badge variant="outline" className="text-xs bg-gray-800 border-gray-600 text-gray-300">
+                            {review.type === "video" && <Video className="h-3 w-3 mr-1" />}
+                            {review.type === "photo" && <Package className="h-3 w-3 mr-1" />}
+                            {review.type === "text" && <MessageSquare className="h-3 w-3 mr-1" />}
                             {review.type}
                           </Badge>
                         )}
@@ -779,11 +822,7 @@ export default function ProductDetails() {
                           </div>
                         ) : review.type === "video" ? (
                           <div className="max-w-md">
-                            <video
-                              controls
-                              className="w-full h-48 object-cover rounded-lg border border-gray-700 bg-gray-800"
-                              poster=""
-                            >
+                            <video controls className="w-full h-48 object-cover rounded-lg border border-gray-700 bg-gray-800">
                               <source src={review.file} type="video/mp4" />
                               Your browser does not support the video tag.
                             </video>
@@ -792,15 +831,13 @@ export default function ProductDetails() {
                       </div>
                     )}
 
-                    {/* Show placeholder when no content or file */}
-                    {!hasContent(review.content) &&
-                      !hasContent(review.file) && (
-                        <div className="ml-16">
-                          <div className="text-gray-500 text-sm italic bg-gray-800/20 p-3 rounded-lg border border-gray-700/50">
-                            No review content provided
-                          </div>
+                    {!hasContent(review.content) && !hasContent(review.file) && (
+                      <div className="ml-16">
+                        <div className="text-gray-500 text-sm italic bg-gray-800/20 p-3 rounded-lg border border-gray-700/50">
+                          No review content provided
                         </div>
-                      )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -819,7 +856,7 @@ export default function ProductDetails() {
             </CardHeader>
             <CardContent>
               <div className="grid gap-6">
-                {product.testimonials.map((testimonial, index) => (
+                {product.testimonials.map((testimonial: any, index: number) => (
                   <div
                     key={index}
                     className="border border-blue-800/50 rounded-xl p-6 bg-gradient-to-r from-blue-900/30 to-indigo-900/30 hover:shadow-md hover:shadow-blue-500/10 transition-shadow duration-200"
@@ -831,9 +868,7 @@ export default function ProductDetails() {
                         </div>
                         <div>
                           <div className="font-semibold text-blue-200 text-base">
-                            {hasContent(testimonial.customerName)
-                              ? testimonial.customerName
-                              : "Anonymous Customer"}
+                            {hasContent(testimonial.customerName) ? testimonial.customerName : "Anonymous Customer"}
                           </div>
                           <div className="space-y-1 mt-1">
                             {hasContent(testimonial.customerDesignation) && (
@@ -853,19 +888,10 @@ export default function ProductDetails() {
                       </div>
 
                       {testimonial.type && (
-                        <Badge
-                          variant="outline"
-                          className="text-xs border-blue-600 text-blue-400 bg-blue-900/50"
-                        >
-                          {testimonial.type === "video" && (
-                            <Video className="h-3 w-3 mr-1" />
-                          )}
-                          {testimonial.type === "photo" && (
-                            <Package className="h-3 w-3 mr-1" />
-                          )}
-                          {testimonial.type === "text" && (
-                            <MessageSquare className="h-3 w-3 mr-1" />
-                          )}
+                        <Badge variant="outline" className="text-xs border-blue-600 text-blue-400 bg-blue-900/50">
+                          {testimonial.type === "video" && <Video className="h-3 w-3 mr-1" />}
+                          {testimonial.type === "photo" && <Package className="h-3 w-3 mr-1" />}
+                          {testimonial.type === "text" && <MessageSquare className="h-3 w-3 mr-1" />}
                           {testimonial.type}
                         </Badge>
                       )}
@@ -879,7 +905,6 @@ export default function ProductDetails() {
                       </div>
                     )}
 
-                    {/* Testimonial Media */}
                     {hasContent(testimonial.file) && (
                       <div className="ml-16 mt-3">
                         {testimonial.type === "photo" ? (
@@ -888,17 +913,12 @@ export default function ProductDetails() {
                               src={testimonial.file}
                               alt="Customer testimonial"
                               className="w-full h-48 object-cover rounded-lg border border-blue-700 hover:opacity-90 transition-opacity cursor-pointer"
-                              onClick={() =>
-                                window.open(testimonial.file, "_blank")
-                              }
+                              onClick={() => window.open(testimonial.file, "_blank")}
                             />
                           </div>
                         ) : testimonial.type === "video" ? (
                           <div className="max-w-md">
-                            <video
-                              controls
-                              className="w-full h-64 object-cover rounded-lg border border-blue-700 bg-gray-800"
-                            >
+                            <video controls className="w-full h-64 object-cover rounded-lg border border-blue-700 bg-gray-800">
                               <source src={testimonial.file} type="video/mp4" />
                               Your browser does not support the video tag.
                             </video>
@@ -907,15 +927,13 @@ export default function ProductDetails() {
                       </div>
                     )}
 
-                    {/* Show placeholder when no content or file */}
-                    {!hasContent(testimonial.content) &&
-                      !hasContent(testimonial.file) && (
-                        <div className="ml-16">
-                          <div className="text-gray-500 text-sm italic bg-gray-800/20 p-3 rounded-lg border border-gray-700/50">
-                            No testimonial content provided
-                          </div>
+                    {!hasContent(testimonial.content) && !hasContent(testimonial.file) && (
+                      <div className="ml-16">
+                        <div className="text-gray-500 text-sm italic bg-gray-800/20 p-3 rounded-lg border border-gray-700/50">
+                          No testimonial content provided
                         </div>
-                      )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
