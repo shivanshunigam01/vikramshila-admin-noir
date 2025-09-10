@@ -53,6 +53,7 @@ export default function AdminLayout() {
   const handleLogout = () => {
     // Clear any stored tokens/auth data
     localStorage.removeItem("admin_token");
+    localStorage.removeItem("admin_user");
     sessionStorage.clear();
 
     toast({
