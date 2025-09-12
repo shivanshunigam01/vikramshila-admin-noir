@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -29,7 +29,8 @@ import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { MessageCircleQuestion } from "lucide-react";
 
-const navigationItems = [
+// ✅ Keep a base list for non-DSE users
+const BASE_NAV_ITEMS = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { name: "Products", href: "/admin/products", icon: Package },
   { name: "Schemes & Offers", href: "/admin/schemes", icon: Gift },
@@ -46,22 +47,40 @@ const navigationItems = [
   { name: "Leads", href: "/admin/leads", icon: Users },
 ];
 
+// ✅ Single source for the Leads-only item (for DSE emails)
+const LEADS_ONLY = [{ name: "Leads", href: "/admin/leads", icon: Users }];
+
 export default function AdminLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const navigate = useNavigate();
 
+  // ✅ Read current user from localStorage and detect DSE by email prefix
+  const isDSEUser = useMemo(() => {
+    try {
+      const raw = localStorage.getItem("admin_user");
+      if (!raw) return false;
+      const parsed = JSON.parse(raw) as { email?: string } | null;
+      const email = (parsed?.email || "").toLowerCase().trim();
+      return email.startsWith("dse");
+    } catch {
+      return false;
+    }
+  }, []);
+
+  // ✅ Compute nav items based on user type
+  const navigationItems = useMemo(
+    () => (isDSEUser ? LEADS_ONLY : BASE_NAV_ITEMS),
+    [isDSEUser]
+  );
+
   const handleLogout = () => {
-    // Clear any stored tokens/auth data
     localStorage.removeItem("admin_token");
     localStorage.removeItem("admin_user");
     sessionStorage.clear();
-
     toast({
       title: "Logged Out",
       description: "You have been successfully logged out.",
     });
-
-    // Navigate to login page (or home page)
     navigate("/");
   };
 
@@ -70,7 +89,6 @@ export default function AdminLayout() {
       {/* Top Navigation */}
       <nav className="vikram-nav h-16 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-40">
         <div className="flex items-center gap-4">
-          {/* Mobile menu button */}
           <Button
             variant="ghost"
             size="icon"
