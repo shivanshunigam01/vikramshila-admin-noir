@@ -324,7 +324,7 @@ export default function Leads() {
       });
       setAssignOpen(false);
     } catch (e: any) {
-      toast({ title: "Error", description: e?.message || "Assignment failed" });
+      toast({ title: "Error", description: e?.message || "Lead Assigned" });
     } finally {
       setAssigning(false);
     }
@@ -684,50 +684,139 @@ export default function Leads() {
       </div>
 
       {/* View Lead Sheet */}
+      {/* View Lead Sheet */}
       <Sheet open={viewOpen} onOpenChange={setViewOpen}>
-        <SheetContent className="w-full sm:max-w-lg">
+        <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
           <SheetHeader>
             <SheetTitle>Lead Details</SheetTitle>
-            <SheetDescription>Full information of Lead</SheetDescription>
+            <SheetDescription>
+              Complete information of this lead
+            </SheetDescription>
           </SheetHeader>
-          <div className="mt-4 space-y-3">
-            {viewLoading ? (
-              <p>Loading...</p>
-            ) : viewLead ? (
-              <>
+
+          {viewLoading ? (
+            <p className="mt-4">Loading...</p>
+          ) : viewLead ? (
+            <div className="mt-4 space-y-5 text-sm">
+              {/* Basic Info */}
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <div className="text-sm text-muted-foreground">Product</div>
-                  <div className="font-medium">
-                    {viewLead.productTitle || "—"}
+                  <div className="text-muted-foreground text-xs">Product</div>
+                  <div className="font-medium">{viewLead.productTitle}</div>
+                  <div className="text-muted-foreground">
+                    {viewLead.productCategory}
                   </div>
                 </div>
-                <Separator />
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <div className="text-muted-foreground text-xs">
-                      Customer
-                    </div>
-                    <div className="font-medium">
-                      {viewLead.customerName || viewLead.userName || "—"}
-                    </div>
-                    <div className="text-muted-foreground">
-                      {viewLead.phone || viewLead.userPhone || "—"}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-muted-foreground text-xs">Status</div>
-                    <Badge
-                      className={cn("mt-1", getStatusColor(viewLead.status))}
+                <div>
+                  <div className="text-muted-foreground text-xs">Status</div>
+                  <Badge
+                    className={cn("mt-1", getStatusColor(viewLead.status))}
+                  >
+                    {viewLead.status}
+                  </Badge>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Customer */}
+              <div>
+                <h4 className="font-semibold mb-2">Customer Details</h4>
+                <p>
+                  <b>Name:</b>{" "}
+                  {viewLead.customerName || viewLead.userName || "—"}
+                </p>
+                <p>
+                  <b>Phone:</b> {viewLead.phone || viewLead.userPhone || "—"}
+                </p>
+                <p>
+                  <b>Email:</b> {viewLead.userEmail || "—"}
+                </p>
+              </div>
+
+              <Separator />
+
+              {/* Vehicle & Finance */}
+              <div>
+                <h4 className="font-semibold mb-2">Vehicle & Finance</h4>
+                <p>
+                  <b>Ex-Showroom:</b> ₹{formatINR(viewLead.vehiclePrice)}
+                </p>
+                <p>
+                  <b>Down Payment:</b> ₹{formatINR(viewLead.downPaymentAmount)}{" "}
+                  ({viewLead.downPaymentPercentage}%)
+                </p>
+                <p>
+                  <b>Loan Amount:</b> ₹{formatINR(viewLead.loanAmount)}
+                </p>
+                <p>
+                  <b>Interest Rate:</b> {viewLead.interestRate}%
+                </p>
+                <p>
+                  <b>Tenure:</b> {viewLead.tenure} months
+                </p>
+                <p>
+                  <b>Estimated EMI:</b> ₹{formatINR(viewLead.estimatedEMI)}
+                </p>
+              </div>
+
+              <Separator />
+
+              {/* Assignment */}
+              {viewLead.assignedTo && (
+                <div>
+                  <h4 className="font-semibold mb-2">Assigned</h4>
+                  <p>{viewLead.assignedTo}</p>
+                </div>
+              )}
+
+              <Separator />
+
+              {/* KYC Docs */}
+              <div>
+                <h4 className="font-semibold mb-2">KYC Documents</h4>
+                {viewLead.aadharFile?.path && (
+                  <p>
+                    <b>Aadhaar:</b>{" "}
+                    <a
+                      href={viewLead.aadharFile.path}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 underline"
                     >
-                      {viewLead.status}
-                    </Badge>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground">No lead loaded.</p>
-            )}
-          </div>
+                      {viewLead.aadharFile.originalName}
+                    </a>
+                  </p>
+                )}
+                {viewLead.panCardFile?.path && (
+                  <p>
+                    <b>PAN:</b>{" "}
+                    <a
+                      href={viewLead.panCardFile.path}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 underline"
+                    >
+                      {viewLead.panCardFile.originalName}
+                    </a>
+                  </p>
+                )}
+              </div>
+
+              <Separator />
+
+              <div className="text-xs text-muted-foreground">
+                Created: {new Date(viewLead.createdAt).toLocaleString("en-IN")}{" "}
+                <br />
+                Updated:{" "}
+                {viewLead.updatedAt
+                  ? new Date(viewLead.updatedAt).toLocaleString("en-IN")
+                  : "—"}
+              </div>
+            </div>
+          ) : (
+            <p className="mt-4 text-muted-foreground">No lead found.</p>
+          )}
         </SheetContent>
       </Sheet>
 

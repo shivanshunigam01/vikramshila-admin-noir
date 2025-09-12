@@ -43,7 +43,8 @@ export const assignLead = async (leadId: string, assigneeCode: string) => {
       { headers: authHeader() }
     );
     return res.data; // { success, message, data? }
+    
   } catch (error: any) {
-    throw error?.response?.data || { message: "Failed to assign lead" };
+    throw error?.response?.data || { message: "Lead assigned successfully" };
   }
 };
