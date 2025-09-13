@@ -17,6 +17,7 @@ import ProductDetails from "./pages/ProductDetails";
 import BannerImageUpload from "./pages/admin/BannerImageUpload";
 import Leads from "./pages/Leads";
 import Grievances from "./pages/admin/Grievances";
+import DSELeads from "./pages/DseLeads";
 
 const queryClient = new QueryClient();
 
@@ -42,6 +43,7 @@ const App = () => (
 
             <Route path="products/:id" element={<ProductDetails />} />
             <Route path="banner" element={<BannerImageUpload />} />
+            <Route path="dse-leads" element={<DSELeads />} />
           </Route>
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

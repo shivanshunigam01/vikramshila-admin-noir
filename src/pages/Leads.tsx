@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
+// icons
+import { Mail, Phone /* ...existing */ } from "lucide-react";
 import {
   Search,
   Car,
@@ -43,6 +45,19 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import {
+  createQoute,
+  updateQoutation,
+  getQoutationByLeadId,
+  type CreateQoutePayload,
+  getAssignedtoDSE,
+  sendQoutationEmail,
+  sendQoutationSMS,
+  createInternalCosting,
+  updateInternalCosting,
+  getInternalCostingByLeadId,
+  type InternalCostingPayload,
+} from "@/services/leadsService";
 
 /* ---------- Types ---------- */
 type KycFile = {
@@ -63,7 +78,7 @@ type Lead = {
   interestRate?: number;
   tenure?: number;
   estimatedEMI?: number;
-  status: "pending" | "approved" | "rejected" | "quotation" | string;
+  status: "C0" | "C1" | "C2" | "C3" | string;
   createdAt: string;
   updatedAt?: string;
   customerName?: string;
@@ -126,12 +141,6 @@ type QuotationForm = {
   remarks: string;
 };
 
-const DSE_OPTIONS = [
-  { code: "DSE-bhagalpur", label: "DSE – Bhagalpur" },
-  { code: "DSE-banka", label: "DSE – Banka" },
-  { code: "DSE-khagaria", label: "DSE – Khagaria" },
-];
-
 /* ---------- Component ---------- */
 export default function Leads() {
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -150,6 +159,15 @@ export default function Leads() {
   const [assignee, setAssignee] = useState<string>("");
   const [assigning, setAssigning] = useState(false);
 
+  // INTERNAL COSTING dialog state
+  const [icOpen, setIcOpen] = useState(false);
+  const [icMode, setIcMode] = useState<"form" | "preview">("form");
+  const [icLead, setIcLead] = useState<Lead | null>(null);
+  const [icForm, setIcForm] = useState<InternalCostingPayload | null>(null);
+  const [icId, setIcId] = useState<string | null>(null);
+  const [icSaving, setIcSaving] = useState(false);
+  const icPrintRef = useRef<HTMLDivElement>(null);
+
   /* ---------- Quotation Dialog ---------- */
   const [qOpen, setQOpen] = useState(false);
   const [qMode, setQMode] = useState<"form" | "preview">("form");
@@ -157,12 +175,430 @@ export default function Leads() {
   const [qForm, setQForm] = useState<QuotationForm | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
 
+  // ensure a quotation exists, then return the id
+  const ensureSavedQuotation = async (): Promise<string | null> => {
+    if (qId) return qId;
+    const payload = buildCreateQoutePayload();
+    if (!payload) return null;
+    try {
+      const res = await createQoute(payload);
+      const created = res?.data;
+      if (created?._id) {
+        setQId(created._id);
+        return created._id;
+      }
+      toast({ title: "Could not save quotation", variant: "destructive" });
+      return null;
+    } catch (e: any) {
+      toast({
+        title: "Create failed",
+        description: e?.message || "Could not create quotation.",
+        variant: "destructive",
+      });
+      return null;
+    }
+  };
+  // which IC fields must be numeric (used by setIC)
+  const IC_NUMERIC_KEYS = new Set<keyof InternalCostingPayload>([
+    "exShowroomOemTp",
+    "handlingCost",
+    "exchangeBuybackSubsidy",
+    "dealerSchemeContribution",
+    "fabricationCost",
+    "marketingCost",
+    "addersSubtotal",
+
+    "dealerMargin",
+    "insuranceCommission",
+    "financeCommission",
+    "oemSchemeSupport",
+    "earlyBirdSchemeSupport",
+    "targetAchievementDiscount",
+    "rtoEarnings",
+    "quarterlyTargetEarnings",
+    "additionalSupportsClaims",
+    "earningsSubtotal",
+
+    "baseVehicleCost",
+    "totalCostAdders",
+    "totalEarningsSupports",
+    "netDealerCost",
+
+    "customerQuotedPrice",
+    "dealerProfitPerVehicle",
+  ]);
+
+  // build a default form for a lead
+  const buildDefaultCostingForm = (lead: Lead): InternalCostingPayload => {
+    const base = numberOrZero(lead.vehiclePrice);
+
+    // a sensible “quoted price” default (you can change)
+    const quoted =
+      numberOrZero(lead.downPaymentAmount) +
+      numberOrZero(lead.estimatedEMI) * numberOrZero(lead.tenure);
+
+    return {
+      leadId: lead._id,
+
+      // Vehicle Information
+      model: lead.productTitle || "",
+      category: lead.productCategory || "",
+      variant: "",
+      fuel: "",
+      payloadSeating: "",
+      exShowroomOemTp: base,
+
+      // A) Adders
+      handlingCost: 0,
+      exchangeBuybackSubsidy: 0,
+      dealerSchemeContribution: 0,
+      fabricationCost: 0,
+      marketingCost: 0,
+      addersSubtotal: 0,
+
+      // B) Earnings
+      dealerMargin: 0,
+      insuranceCommission: 0,
+      financeCommission: 0,
+      oemSchemeSupport: 0,
+      earlyBirdSchemeSupport: 0,
+      targetAchievementDiscount: 0,
+      rtoEarnings: 0,
+      quarterlyTargetEarnings: 0,
+      additionalSupportsClaims: 0,
+      earningsSubtotal: 0,
+
+      // C) Summary
+      baseVehicleCost: base,
+      totalCostAdders: 0,
+      totalEarningsSupports: 0,
+      netDealerCost: base,
+
+      // Profit
+      customerQuotedPrice: quoted,
+      dealerProfitPerVehicle: quoted - base,
+
+      // misc
+      preparedBy: "",
+      remarks: "",
+    };
+  };
+
+  // recalc derived fields when any input changes
+  const setIC = (k: keyof InternalCostingPayload, v: string | number) => {
+    setIcForm((prev) => {
+      if (!prev) return prev;
+
+      const x: InternalCostingPayload = { ...prev };
+
+      const toNum = (val: any) => numberOrZero(val);
+      const setVal = (key: keyof InternalCostingPayload, value: any) => {
+        (x as any)[key] = IC_NUMERIC_KEYS.has(key) ? toNum(value) : value;
+      };
+
+      setVal(k, v);
+
+      // derive subtotals
+      const addersSubtotal =
+        toNum(x.handlingCost) +
+        toNum(x.exchangeBuybackSubsidy) +
+        toNum(x.dealerSchemeContribution) +
+        toNum(x.fabricationCost) +
+        toNum(x.marketingCost);
+
+      const earningsSubtotal =
+        toNum(x.dealerMargin) +
+        toNum(x.insuranceCommission) +
+        toNum(x.financeCommission) +
+        toNum(x.oemSchemeSupport) +
+        toNum(x.earlyBirdSchemeSupport) +
+        toNum(x.targetAchievementDiscount) +
+        toNum(x.rtoEarnings) +
+        toNum(x.quarterlyTargetEarnings) +
+        toNum(x.additionalSupportsClaims);
+
+      x.addersSubtotal = addersSubtotal;
+      x.earningsSubtotal = earningsSubtotal;
+
+      x.baseVehicleCost = toNum(x.exShowroomOemTp);
+      x.totalCostAdders = addersSubtotal;
+      x.totalEarningsSupports = earningsSubtotal;
+      x.netDealerCost = x.baseVehicleCost + addersSubtotal - earningsSubtotal;
+
+      x.dealerProfitPerVehicle =
+        toNum(x.customerQuotedPrice) - toNum(x.netDealerCost);
+
+      return x;
+    });
+  };
+
+  const ensureHtml2Pdf = (): Promise<any> =>
+    new Promise((resolve, reject) => {
+      const w = window as any;
+      if (w.html2pdf) return resolve(w.html2pdf);
+      const s = document.createElement("script");
+      s.src =
+        "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
+      s.onload = () => resolve((window as any).html2pdf);
+      s.onerror = () => reject(new Error("Failed to load html2pdf"));
+      document.body.appendChild(s);
+    });
+
+  const printCosting = () => {
+    if (!icPrintRef.current) return;
+    const w = window.open("", "", "height=800,width=1200");
+    if (!w) return;
+    w.document.write(
+      `<html><head><title>Internal Costing</title></head><body>${icPrintRef.current.innerHTML}</body></html>`
+    );
+    w.document.close();
+    w.print();
+    w.close();
+  };
+
+  const downloadCostingPDF = async () => {
+    if (!icPrintRef.current) return;
+    const html2pdf = await ensureHtml2Pdf();
+    const fname = `InternalCosting_${
+      icLead?.productTitle || "Vehicle"
+    }_${new Date().toISOString().slice(0, 10)}.pdf`.replace(/\s+/g, "_");
+    await html2pdf()
+      .from(icPrintRef.current)
+      .set({
+        filename: fname,
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: "pt", format: "a4" },
+      })
+      .save();
+  };
+  // open dialog, load existing (if any) else default
+  const openCosting = async (lead: Lead) => {
+    setIcLead(lead);
+    setIcOpen(true);
+    setIcMode("form");
+    setIcSaving(false);
+
+    try {
+      const res = await getInternalCostingByLeadId(lead._id); // returns { success, data }
+      const doc = res?.data;
+      if (doc && doc._id) {
+        setIcId(doc._id);
+        // make sure numbers are numbers
+        setIcForm({
+          ...buildDefaultCostingForm(lead),
+          ...doc,
+        });
+      } else {
+        setIcId(null);
+        setIcForm(buildDefaultCostingForm(lead));
+      }
+    } catch (e: any) {
+      toast({
+        title: "Couldn’t load Internal Costing",
+        description: e?.message || "Opening a blank form instead.",
+      });
+      setIcId(null);
+      setIcForm(buildDefaultCostingForm(lead));
+    }
+  };
+
+  // create new
+  const handleCreateInternalCosting = async () => {
+    if (!icForm) return;
+    setIcSaving(true);
+    try {
+      const res = await createInternalCosting(icForm);
+      const created = res?.data;
+      if (created?._id) setIcId(created._id);
+      toast({
+        title: "Internal Costing created",
+        description: created?._id ? `#${created._id}` : "Saved.",
+      });
+    } catch (e: any) {
+      toast({
+        title: "Create failed",
+        description: e?.message || "Unable to save costing.",
+        variant: "destructive",
+      });
+    } finally {
+      setIcSaving(false);
+    }
+  };
+
+  // update existing
+  const handleUpdateInternalCosting = async () => {
+    if (!icId || !icForm) {
+      toast({ title: "Nothing to update", description: "Create first." });
+      return;
+    }
+    setIcSaving(true);
+    try {
+      const res = await updateInternalCosting(icId, icForm);
+      toast({
+        title: "Internal Costing updated",
+        description: "Saved changes.",
+      });
+    } catch (e: any) {
+      toast({
+        title: "Update failed",
+        description: e?.message || "Unable to update costing.",
+        variant: "destructive",
+      });
+    } finally {
+      setIcSaving(false);
+    }
+  };
+
+  // toggle to preview
+  const goIcPreview = () => {
+    if (icForm) setIcMode("preview");
+  };
+
+  // print
+  const printInternalCosting = () => {
+    if (!icPrintRef.current) return;
+    const w = window.open("", "", "height=800,width=1200");
+    if (!w) return;
+    w.document.write(`
+    <html>
+      <head>
+        <title>Internal Costing</title>
+        <style>
+          html,body{background:#fff;color:#111;font-family:Arial,sans-serif;margin:0;padding:20px}
+          table{width:100%;border-collapse:collapse;margin:10px 0}
+          th,td{border:1px solid #000;padding:8px;text-align:left;color:#111}
+          th{background:#f0f0f0;font-weight:bold}
+          .header{text-align:center;margin-bottom:20px}
+        </style>
+      </head>
+      <body>${icPrintRef.current.innerHTML}</body>
+    </html>
+  `);
+    w.document.close();
+    w.print();
+    w.close();
+  };
+
+  // download as PDF (uses same html2pdf loader you already have)
+  const downloadInternalCostingPDF = async () => {
+    if (!icPrintRef.current) return;
+    try {
+      const html2pdf = await ensureHtml2Pdf();
+      const fname = `Internal_Costing_${
+        icForm?.model || icLead?.productTitle || "Vehicle"
+      }_${new Date().toISOString().slice(0, 10)}.pdf`.replace(/\s+/g, "_");
+
+      await html2pdf()
+        .from(icPrintRef.current)
+        .set({
+          filename: fname,
+          html2canvas: { scale: 2, useCORS: true },
+          jsPDF: { unit: "pt", format: "a4", orientation: "portrait" },
+          pagebreak: { mode: ["css", "legacy"] },
+        })
+        .save();
+    } catch (e: any) {
+      toast({
+        title: "Download failed",
+        description: e?.message || "Could not generate PDF.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // update existing
+
+  // toggle to preview
+
+  const handleUpdateCosting = async () => {
+    if (!icId || !icForm) return;
+    setIcSaving(true);
+    try {
+      await updateInternalCosting(icId, icForm);
+      toast({ title: "Internal costing updated" });
+    } catch (e: any) {
+      toast({
+        title: "Update failed",
+        description: e?.message || "—",
+        variant: "destructive",
+      });
+    } finally {
+      setIcSaving(false);
+    }
+  };
+
+  const emailQuotation = async () => {
+    if (!qLead || !qForm) return;
+    const defaultEmail = qLead.userEmail || "";
+    const to = window.prompt("Recipient email address", defaultEmail || "");
+    if (!to) return;
+
+    const id = await ensureSavedQuotation();
+    if (!id) return;
+
+    try {
+      const r = await sendQoutationEmail(id, to);
+      toast({ title: "Email sent", description: r?.message || "Delivered." });
+    } catch (e: any) {
+      toast({
+        title: "Email failed",
+        description: e?.message || "Unable to send.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const smsQuotation = async () => {
+    if (!qLead || !qForm) return;
+    const defaultPhone = qForm.contactNumber || qLead.userPhone || "";
+    const to = window.prompt(
+      "Recipient phone (E.164, e.g. +9198XXXXXXXX)",
+      defaultPhone || ""
+    );
+    if (!to) return;
+
+    // ask SMS or WhatsApp (simple selection)
+    const channel = window.prompt(
+      'Type "whatsapp" for WA, or press OK for SMS',
+      ""
+    );
+    const via = channel?.toLowerCase() === "whatsapp" ? "whatsapp" : "sms";
+
+    const id = await ensureSavedQuotation();
+    if (!id) return;
+
+    try {
+      const r = await sendQoutationSMS(id, to, via as "sms" | "whatsapp");
+      toast({
+        title: via === "whatsapp" ? "WhatsApp sent" : "SMS sent",
+        description: r?.message || "Delivered.",
+      });
+    } catch (e: any) {
+      toast({
+        title: "Message failed",
+        description: e?.message || "Unable to send.",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Utils
   const formatINR = (n?: number | string) => {
     const num = typeof n === "string" ? Number(n) : n;
     if (!Number.isFinite(num as number)) return "0";
     return (num as number).toLocaleString("en-IN");
   };
+
+  useEffect(() => {
+    if (assignOpen) {
+      loadDseOptions();
+    }
+  }, [assignOpen]);
+
+  type DseUser = { _id: string; name: string; email: string };
+
+  const [dseOptions, setDseOptions] = useState<DseUser[]>([]);
+  const [dseLoading, setDseLoading] = useState(false);
 
   const numberOrZero = (v: any, fallback: number = 0): number => {
     const n = Number(v);
@@ -204,7 +640,7 @@ export default function Leads() {
       interestRate: rate,
       tenure,
       estimatedEMI: emi,
-      status: (x?.status ?? "pending") as Lead["status"],
+      status: (x?.status ?? "C0") as Lead["status"],
       createdAt: x?.createdAt ?? new Date().toISOString(),
       updatedAt: x?.updatedAt,
       customerName: x?.customerName ?? x?.userName ?? "",
@@ -242,6 +678,8 @@ export default function Leads() {
     fetchLeads();
   }, []);
 
+  const [qId, setQId] = useState<string | null>(null); // backend quotation _id
+  const [qSaving, setQSaving] = useState(false);
   // Search + filter
   const filteredLeads = useMemo(() => {
     const q = searchTerm.toLowerCase().trim();
@@ -263,14 +701,14 @@ export default function Leads() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "pending":
-        return "bg-yellow-500/20 text-yellow-700 border-yellow-600/20";
-      case "approved":
-        return "bg-green-500/20 text-green-700 border-green-600/20";
-      case "rejected":
-        return "bg-red-500/20 text-red-700 border-red-600/20";
-      case "quotation":
+      case "C0":
+        return "bg-slate-500/20 text-slate-700 border-slate-600/20";
+      case "C1":
         return "bg-blue-500/20 text-blue-700 border-blue-600/20";
+      case "C2":
+        return "bg-amber-500/20 text-amber-700 border-amber-600/20";
+      case "C3":
+        return "bg-green-500/20 text-green-700 border-green-600/20";
       default:
         return "bg-muted text-foreground/70 border-border";
     }
@@ -295,11 +733,158 @@ export default function Leads() {
     }
   };
 
+  const buildCreateQoutePayload = (): CreateQoutePayload | null => {
+    if (!qLead || !qForm) return null;
+
+    const num = (v: any) => numberOrZero(v);
+
+    const payload: CreateQoutePayload = {
+      leadId: qLead._id,
+
+      // customer
+      customerName: qForm.customerName,
+      contactNumber: qForm.contactNumber,
+      address: qForm.address || "",
+      gstNo: qForm.gstNo || "",
+      panNo: qForm.panNo || "",
+      salesExecutive: qForm.salesExecutive || "",
+
+      // vehicle
+      model: qForm.model,
+      variant: qForm.variant || "",
+      color: qForm.color || "",
+
+      // pricing
+      exShowroomPrice: num(qForm.exShowroomPrice),
+      rtoTax: num(qForm.rtoTax),
+      insurance: num(qForm.insurance),
+      accessories: num(qForm.accessories),
+      extendedWarranty: num(qForm.extendedWarranty),
+      totalOnRoadPrice: num(qForm.totalOnRoadPrice),
+
+      // discounts
+      consumerOffer: num(qForm.consumerOffer),
+      exchangeBonus: num(qForm.exchangeBonus),
+      corporateDiscount: num(qForm.corporateDiscount),
+      additionalDiscount: num(qForm.additionalDiscount),
+      totalDiscount: num(qForm.totalDiscount),
+
+      // final
+      netSellingPrice: num(qForm.netSellingPrice),
+
+      // finance
+      loanAmount: num(qForm.loanAmount),
+      downPayment: num(qForm.downPayment),
+      processingFee: num(qForm.processingFee),
+      rateOfInterest: num(qForm.rateOfInterest),
+      tenure: num(qForm.tenure),
+      emi: num(qForm.emi),
+
+      // misc
+      deliveryPeriod: qForm.deliveryPeriod || "",
+      validityPeriod: qForm.validityPeriod || "",
+      remarks: qForm.remarks || "",
+    };
+
+    // simple validation
+    if (!payload.customerName || !payload.contactNumber || !payload.model) {
+      toast({
+        title: "Missing required fields",
+        description: "Customer Name, Contact Number & Model are mandatory.",
+        variant: "destructive",
+      });
+      return null;
+    }
+
+    return payload;
+  };
+
+  const loadDseOptions = async () => {
+    setDseLoading(true);
+    try {
+      const res = await getAssignedtoDSE();
+      const arr = Array.isArray(res?.data) ? res.data : [];
+      setDseOptions(
+        arr.map((u) => ({ _id: u._id, name: u.name, email: u.email }))
+      );
+    } catch (e: any) {
+      toast({
+        title: "Error",
+        description: e?.message || "Failed to load DSE list.",
+        variant: "destructive",
+      });
+    } finally {
+      setDseLoading(false);
+    }
+  };
   // Assign actions
   const openAssign = (lead: Lead) => {
     setAssignFor(lead);
     setAssignee("");
     setAssignOpen(true);
+    loadDseOptions();
+  };
+  const handleCreateQoute = async () => {
+    const payload = buildCreateQoutePayload();
+    if (!payload) return;
+
+    setQSaving(true);
+    try {
+      const res = await createQoute(payload);
+      const created = res?.data;
+      if (created?._id) setQId(created._id);
+
+      // (optional) reflect status on the lead card
+      if (qLead?._id) {
+        setLeads((prev) =>
+          prev.map((l) => (l._id === qLead._id ? { ...l, status: "C1" } : l))
+        );
+      }
+
+      toast({
+        title: "Quotation created",
+        description: `Quotation ${created?._id ? `` : ""} saved.`,
+      });
+    } catch (e: any) {
+      toast({
+        title: "Create failed",
+        description: e?.message || "Could not create quotation.",
+        variant: "destructive",
+      });
+    } finally {
+      setQSaving(false);
+    }
+  };
+
+  const handleUpdateQoutation = async () => {
+    if (!qId) {
+      toast({
+        title: "No quotation to update",
+        description: "Please create the quotation first.",
+      });
+      return;
+    }
+    const payload = buildCreateQoutePayload();
+    if (!payload) return;
+
+    setQSaving(true);
+    try {
+      const res = await updateQoutation(qId, payload);
+      const updated = res?.data;
+
+      toast({
+        title: "Quotation updated",
+        description: `Quotation has been updated.`,
+      });
+    } catch (e: any) {
+      toast({
+        title: "Update failed",
+        description: e?.message || "Could not update quotation.",
+        variant: "destructive",
+      });
+    } finally {
+      setQSaving(false);
+    }
   };
 
   const confirmAssign = async () => {
@@ -312,76 +897,139 @@ export default function Leads() {
     }
     setAssigning(true);
     try {
-      await assignLead(assignFor._id, assignee);
+      const res = await assignLead(assignFor._id, assignee);
+      const updated = res?.data; // ← updated Lead from server
+
       setLeads((prev) =>
         prev.map((l) =>
-          l._id === assignFor._id ? { ...l, assignedTo: assignee } : l
+          l._id === assignFor._id
+            ? {
+                ...l,
+                assignedTo: updated?.assignedTo ?? l.assignedTo,
+                status: updated?.status ?? l.status, // server bumps to C1
+              }
+            : l
         )
       );
+
       toast({
         title: "Assigned",
-        description: `Lead assigned to ${assignee}.`,
+        description: `Lead assigned to ${updated?.assignedTo || "DSE"}.`,
       });
       setAssignOpen(false);
     } catch (e: any) {
-      toast({ title: "Error", description: e?.message || "Lead Assigned" });
+      toast({ title: "Error", description: e?.message || "Failed to assign" });
     } finally {
       setAssigning(false);
     }
   };
 
+  const quotationToForm = (q: any): QuotationForm => ({
+    customerName: q.customerName || "",
+    contactNumber: q.contactNumber || "",
+    address: q.address || "",
+    gstNo: q.gstNo || "",
+    panNo: q.panNo || "",
+    model: q.model || "",
+    variant: q.variant || "",
+    color: q.color || "",
+    exShowroomPrice: String(q.exShowroomPrice ?? 0),
+    rtoTax: String(q.rtoTax ?? 0),
+    insurance: String(q.insurance ?? 0),
+    accessories: String(q.accessories ?? 0),
+    extendedWarranty: String(q.extendedWarranty ?? 0),
+    totalOnRoadPrice: String(q.totalOnRoadPrice ?? 0),
+    consumerOffer: String(q.consumerOffer ?? 0),
+    exchangeBonus: String(q.exchangeBonus ?? 0),
+    corporateDiscount: String(q.corporateDiscount ?? 0),
+    additionalDiscount: String(q.additionalDiscount ?? 0),
+    totalDiscount: String(q.totalDiscount ?? 0),
+    netSellingPrice: String(q.netSellingPrice ?? 0),
+    loanAmount: String(q.loanAmount ?? 0),
+    downPayment: String(q.downPayment ?? 0),
+    processingFee: String(q.processingFee ?? 0),
+    rateOfInterest: String(q.rateOfInterest ?? 0),
+    tenure: String(q.tenure ?? 0),
+    emi: String(q.emi ?? 0),
+    deliveryPeriod: q.deliveryPeriod || "",
+    validityPeriod: q.validityPeriod || "",
+    salesExecutive: q.salesExecutive || "",
+    remarks: q.remarks || "",
+  });
+
   /* ---------- Quotation Functions ---------- */
-  const openQuotation = (lead: Lead) => {
-    const basePrice = lead.vehiclePrice || 0;
-    const rto = Math.round(basePrice * 0.12);
-    const insurance = Math.round(basePrice * 0.04);
-    const accessories = 15000;
-    const warranty = 8000;
-    const totalOnRoad = basePrice + rto + insurance + accessories + warranty;
+  const openQuotation = async (lead: Lead) => {
+    setQLead(lead);
+    setQOpen(true);
+    setQMode("form");
+    setQSaving(false);
 
-    const form: QuotationForm = {
-      customerName: lead.customerName || lead.userName || "",
-      contactNumber: lead.phone || lead.userPhone || "",
-      address: "",
-      gstNo: "",
-      panNo: "",
+    // If it's a fresh lead (not yet quotation), build a blank/default form
+    const buildDefaultForm = () => {
+      const basePrice = lead.vehiclePrice || 0;
+      const rto = Math.round(basePrice * 0.12);
+      const insurance = Math.round(basePrice * 0.04);
+      const accessories = 15000;
+      const warranty = 8000;
+      const totalOnRoad = basePrice + rto + insurance + accessories + warranty;
 
-      model: lead.productTitle || "",
-      variant: "",
-      color: "",
-
-      exShowroomPrice: String(basePrice),
-      rtoTax: String(rto),
-      insurance: String(insurance),
-      accessories: String(accessories),
-      extendedWarranty: String(warranty),
-      totalOnRoadPrice: String(totalOnRoad),
-
-      consumerOffer: "0",
-      exchangeBonus: "0",
-      corporateDiscount: "0",
-      additionalDiscount: "0",
-      totalDiscount: "0",
-
-      netSellingPrice: String(totalOnRoad),
-
-      loanAmount: String(lead.loanAmount || 0),
-      downPayment: String(lead.downPaymentAmount || 0),
-      processingFee: "15000",
-      rateOfInterest: String(lead.interestRate || ""),
-      tenure: String(lead.tenure || ""),
-      emi: String(lead.estimatedEMI || ""),
-
-      deliveryPeriod: "30-45 days",
-      validityPeriod: "30 days",
-      salesExecutive: lead.assignedTo || "",
-      remarks: "",
+      const form: QuotationForm = {
+        customerName: lead.customerName || lead.userName || "",
+        contactNumber: lead.phone || lead.userPhone || "",
+        address: "",
+        gstNo: "",
+        panNo: "",
+        model: lead.productTitle || "",
+        variant: "",
+        color: "",
+        exShowroomPrice: String(basePrice),
+        rtoTax: String(rto),
+        insurance: String(insurance),
+        accessories: String(accessories),
+        extendedWarranty: String(warranty),
+        totalOnRoadPrice: String(totalOnRoad),
+        consumerOffer: "0",
+        exchangeBonus: "0",
+        corporateDiscount: "0",
+        additionalDiscount: "0",
+        totalDiscount: "0",
+        netSellingPrice: String(totalOnRoad),
+        loanAmount: String(lead.loanAmount || 0),
+        downPayment: String(lead.downPaymentAmount || 0),
+        processingFee: "15000",
+        rateOfInterest: String(lead.interestRate || ""),
+        tenure: String(lead.tenure || ""),
+        emi: String(lead.estimatedEMI || ""),
+        deliveryPeriod: "30-45 days",
+        validityPeriod: "30 days",
+        salesExecutive: lead.assignedTo || "",
+        remarks: "",
+      };
+      return form;
     };
 
-    setQLead(lead);
-    setQForm(form);
-    setQMode("form");
-    setQOpen(true);
+    // If the lead already has a quotation, fetch & prefill for UPDATE
+    if (lead.status === "C1") {
+      try {
+        const res = await getQoutationByLeadId(lead._id);
+        const q = res?.data;
+        if (q && q._id) {
+          setQId(q._id); // <-- keep the SAME quotation id
+          setQForm(quotationToForm(q)); // <-- prefill the form
+          return;
+        }
+      } catch (e: any) {
+        toast({
+          title: "Couldn’t load quotation",
+          description: e?.message || "Opening a blank form instead.",
+        });
+        // fall through to default form
+      }
+    }
+
+    // Default (create-new) form & clear quotation id
+    setQId(null);
+    setQForm(buildDefaultForm());
   };
 
   const setQ = (k: keyof QuotationForm, v: string) => {
@@ -441,18 +1089,6 @@ export default function Leads() {
   /* ---------- Print & Download ---------- */
 
   // dynamically load html2pdf.js when needed (no build changes)
-  const ensureHtml2Pdf = (): Promise<any> =>
-    new Promise((resolve, reject) => {
-      const w = window as any;
-      if (w.html2pdf) return resolve(w.html2pdf);
-      const script = document.createElement("script");
-      script.src =
-        "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
-      script.onload = () => resolve((window as any).html2pdf);
-      script.onerror = () =>
-        reject(new Error("Failed to load html2pdf.js from CDN"));
-      document.body.appendChild(script);
-    });
 
   const printQuotation = () => {
     if (printRef.current) {
@@ -565,10 +1201,10 @@ export default function Leads() {
             className="px-3 py-2 rounded-md border bg-input text-sm"
           >
             <option value="all">All Status</option>
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-            <option value="quotation">Quotation</option>
-            <option value="rejected">Rejected</option>
+            <option value="C0">C0</option>
+            <option value="C1">C1</option>
+            <option value="C2">C2</option>
+            <option value="C3">C3</option>
           </select>
         </CardContent>
       </Card>
@@ -618,11 +1254,30 @@ export default function Leads() {
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-48">
-                        <DropdownMenuItem onClick={() => openQuotation(lead)}>
-                          <Calculator className="mr-2 h-4 w-4" />
-                          Create Quotation
-                        </DropdownMenuItem>
+                      <DropdownMenuContent align="end" className="w-56">
+                        {lead.status === "C2" || lead.status === "C3" ? (
+                          <DropdownMenuItem onClick={() => openCosting(lead)}>
+                            <Calculator className="mr-2 h-4 w-4" />
+                            {/** if you want to say Update when it already exists: */}
+                            {/** (!!icId known only inside the dialog; keep it generic here) */}
+                            Add Internal Costing
+                          </DropdownMenuItem>
+                        ) : (
+                          <DropdownMenuItem onClick={() => openQuotation(lead)}>
+                            {lead.status === "C1" ? (
+                              <>
+                                <PencilLine className="mr-2 h-4 w-4" />
+                                Update Quotation
+                              </>
+                            ) : (
+                              <>
+                                <Calculator className="mr-2 h-4 w-4" />
+                                Create Quotation
+                              </>
+                            )}
+                          </DropdownMenuItem>
+                        )}
+
                         <DropdownMenuItem onClick={() => handleView(lead._id)}>
                           <Eye className="mr-2 h-4 w-4" />
                           View Details
@@ -837,11 +1492,19 @@ export default function Leads() {
                 className="w-full px-3 py-2 border rounded-md bg-input"
                 value={assignee}
                 onChange={(e) => setAssignee(e.target.value)}
+                disabled={dseLoading}
               >
-                <option value="">Select DSE…</option>
-                {DSE_OPTIONS.map((opt) => (
-                  <option key={opt.code} value={opt.code}>
-                    {opt.label}
+                <option value="">
+                  {dseLoading ? "Loading DSE…" : "Select DSE…"}
+                </option>
+                {!dseLoading && dseOptions.length === 0 && (
+                  <option value="" disabled>
+                    No DSE found
+                  </option>
+                )}
+                {dseOptions.map((opt) => (
+                  <option key={opt._id} value={opt._id}>
+                    {opt.name} ({opt.email})
                   </option>
                 ))}
               </select>
@@ -894,10 +1557,43 @@ export default function Leads() {
 
             {qMode === "preview" && (
               <div className="flex gap-2">
-                {/* <Button size="sm" variant="outline" onClick={downloadPDF}>
-                  <Download className="h-4 w-4 mr-1" />
-                  Download PDF
-                </Button> */}
+                <Button
+                  size="sm"
+                  onClick={qId ? handleUpdateQoutation : handleCreateQoute}
+                  disabled={qSaving}
+                  className={
+                    qId
+                      ? "bg-green-600 hover:bg-green-700"
+                      : "bg-blue-600 hover:bg-blue-700"
+                  }
+                >
+                  {qSaving ? (
+                    <>
+                      <Clock className="h-4 w-4 mr-1" /> Saving…
+                    </>
+                  ) : qId ? (
+                    <>
+                      <PencilLine className="h-4 w-4 mr-1" /> Update Quotation
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-4 w-4 mr-1" /> Create & Save
+                    </>
+                  )}
+                </Button>
+
+                {/* NEW: Email */}
+                <Button size="sm" variant="outline" onClick={emailQuotation}>
+                  <Mail className="h-4 w-4 mr-1" />
+                  Email
+                </Button>
+
+                {/* NEW: SMS / WhatsApp */}
+                <Button size="sm" variant="outline" onClick={smsQuotation}>
+                  <Phone className="h-4 w-4 mr-1" />
+                  SMS / WhatsApp
+                </Button>
+
                 <Button size="sm" onClick={printQuotation}>
                   <Printer className="h-4 w-4 mr-1" />
                   Print
@@ -1694,6 +2390,618 @@ export default function Leads() {
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ---------- Internal Costing Dialog ---------- */}
+      <Dialog open={icOpen} onOpenChange={setIcOpen}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden">
+          <DialogHeader className="pb-2">
+            <DialogTitle className="flex items-center gap-2">
+              <Calculator className="h-5 w-5" />
+              Internal Costing
+            </DialogTitle>
+            <DialogDescription>
+              Create internal costing for {icLead?.productTitle} (visible only
+              to staff)
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Mode toggle */}
+          <div className="flex items-center justify-between border-b pb-3">
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant={icMode === "form" ? "default" : "outline"}
+                onClick={() => setIcMode("form")}
+              >
+                <PencilLine className="h-4 w-4 mr-1" />
+                Edit Form
+              </Button>
+              <Button
+                size="sm"
+                variant={icMode === "preview" ? "default" : "outline"}
+                onClick={() => setIcMode("preview")}
+              >
+                <Eye className="h-4 w-4 mr-1" />
+                Preview
+              </Button>
+            </div>
+
+            {icMode === "preview" && (
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={
+                    icId
+                      ? handleUpdateInternalCosting
+                      : handleCreateInternalCosting
+                  }
+                  disabled={icSaving}
+                  className={
+                    icId
+                      ? "bg-green-600 hover:bg-green-700"
+                      : "bg-blue-600 hover:bg-blue-700"
+                  }
+                >
+                  {icSaving ? (
+                    <>
+                      <Clock className="h-4 w-4 mr-1" /> Saving…
+                    </>
+                  ) : icId ? (
+                    <>
+                      <PencilLine className="h-4 w-4 mr-1" /> Update Costing
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-4 w-4 mr-1" /> Create & Save
+                    </>
+                  )}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={downloadInternalCostingPDF}
+                >
+                  <Download className="h-4 w-4 mr-1" />
+                  PDF
+                </Button>
+                <Button size="sm" onClick={printInternalCosting}>
+                  <Printer className="h-4 w-4 mr-1" />
+                  Print
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* FORM */}
+          {icMode === "form" && icForm && (
+            <div className="overflow-y-auto max-h-[65vh]">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-1">
+                {/* Vehicle Info */}
+                <div className="md:col-span-3">
+                  <h4 className="text-base font-semibold mb-3 text-blue-600">
+                    Vehicle Information
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
+                    <div className="md:col-span-2">
+                      <Label>Model</Label>
+                      <Input
+                        value={icForm.model}
+                        onChange={(e) => setIC("model", e.target.value)}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label>Category</Label>
+                      <Input
+                        value={icForm.category || ""}
+                        onChange={(e) => setIC("category", e.target.value)}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label>Variant</Label>
+                      <Input
+                        value={icForm.variant || ""}
+                        onChange={(e) => setIC("variant", e.target.value)}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label>Fuel</Label>
+                      <Input
+                        value={icForm.fuel || ""}
+                        onChange={(e) => setIC("fuel", e.target.value)}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label>Payload/Seating</Label>
+                      <Input
+                        value={icForm.payloadSeating || ""}
+                        onChange={(e) =>
+                          setIC("payloadSeating", e.target.value)
+                        }
+                        className="mt-1"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <Label>Ex-Showroom (OEM TP)</Label>
+                      <Input
+                        type="number"
+                        value={icForm.exShowroomOemTp}
+                        onChange={(e) =>
+                          setIC("exShowroomOemTp", e.target.value)
+                        }
+                        className="mt-1"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* A) Cost Adders */}
+                <div className="md:col-span-3">
+                  <h4 className="text-base font-semibold mb-3 text-purple-600">
+                    A) Cost Adders (Dealer Expenses)
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {[
+                      [
+                        "handlingCost",
+                        "Dealer Handling Cost (Logistics, PDI, Admin)",
+                      ],
+                      [
+                        "exchangeBuybackSubsidy",
+                        "Exchange/Buyback Subsidy (Dealer Share)",
+                      ],
+                      [
+                        "dealerSchemeContribution",
+                        "Scheme / Discount Contribution by Dealer",
+                      ],
+                      ["fabricationCost", "Fabrication Cost (Dealer Share)"],
+                      [
+                        "marketingCost",
+                        "Marketing Cost (Per Vehicle Allocation)",
+                      ],
+                    ].map(([key, label]) => (
+                      <div key={key}>
+                        <Label>{label}</Label>
+                        <Input
+                          type="number"
+                          value={(icForm as any)[key] ?? 0}
+                          onChange={(e) => setIC(key as any, e.target.value)}
+                          className="mt-1"
+                        />
+                      </div>
+                    ))}
+                    <div>
+                      <Label>Subtotal: Cost Adders (₹)</Label>
+                      <Input
+                        type="number"
+                        value={icForm.addersSubtotal}
+                        readOnly
+                        className="mt-1 bg-muted/40"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* B) Earnings & Supports */}
+                <div className="md:col-span-3">
+                  <h4 className="text-base font-semibold mb-3 text-green-600">
+                    B) Earnings & Supports (Reduce Net Cost)
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {[
+                      ["dealerMargin", "Dealer Margin (₹)"],
+                      ["insuranceCommission", "Insurance Commission"],
+                      ["financeCommission", "Finance Commission"],
+                      [
+                        "oemSchemeSupport",
+                        "Scheme / Discount Support from OEM",
+                      ],
+                      ["earlyBirdSchemeSupport", "Early Bird Scheme Support"],
+                      [
+                        "targetAchievementDiscount",
+                        "Target Achievement Discount (Monthly/Monthly Slab)",
+                      ],
+                      ["rtoEarnings", "RTO Earnings"],
+                      ["quarterlyTargetEarnings", "Quarterly Target Earnings"],
+                      [
+                        "additionalSupportsClaims",
+                        "Additional Supports / Claims",
+                      ],
+                    ].map(([key, label]) => (
+                      <div key={key}>
+                        <Label>{label}</Label>
+                        <Input
+                          type="number"
+                          value={(icForm as any)[key] ?? 0}
+                          onChange={(e) => setIC(key as any, e.target.value)}
+                          className="mt-1"
+                        />
+                      </div>
+                    ))}
+                    <div>
+                      <Label>Subtotal: Earnings & Supports (₹)</Label>
+                      <Input
+                        type="number"
+                        value={icForm.earningsSubtotal}
+                        readOnly
+                        className="mt-1 bg-muted/40"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* C) Net Dealer Cost & Profitability */}
+                <div className="md:col-span-3">
+                  <h4 className="text-base font-semibold mb-3 text-red-600">
+                    C) Net Dealer Cost & Profitability
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <Label>Base Vehicle Cost (Ex-Showroom OEM TP)</Label>
+                      <Input
+                        type="number"
+                        value={icForm.baseVehicleCost}
+                        readOnly
+                        className="mt-1 bg-muted/40"
+                      />
+                    </div>
+                    <div>
+                      <Label>Total Cost Adders</Label>
+                      <Input
+                        type="number"
+                        value={icForm.totalCostAdders}
+                        readOnly
+                        className="mt-1 bg-muted/40"
+                      />
+                    </div>
+                    <div>
+                      <Label>Total Earnings & Supports</Label>
+                      <Input
+                        type="number"
+                        value={icForm.totalEarningsSupports}
+                        readOnly
+                        className="mt-1 bg-muted/40"
+                      />
+                    </div>
+                    <div>
+                      <Label>
+                        Net Dealer Cost (₹) = Base + Adders – Earnings
+                      </Label>
+                      <Input
+                        type="number"
+                        value={icForm.netDealerCost}
+                        readOnly
+                        className="mt-1 bg-muted/40 font-semibold"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quoted & Profit */}
+                <div className="md:col-span-3">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <Label>Customer Quoted Price (₹)</Label>
+                      <Input
+                        type="number"
+                        value={icForm.customerQuotedPrice}
+                        onChange={(e) =>
+                          setIC("customerQuotedPrice", e.target.value)
+                        }
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label>
+                        Dealer Profit per Vehicle (₹) = Quoted – Net Dealer Cost
+                      </Label>
+                      <Input
+                        type="number"
+                        value={icForm.dealerProfitPerVehicle}
+                        readOnly
+                        className="mt-1 bg-muted/40 font-semibold"
+                      />
+                    </div>
+                    <div>
+                      <Label>Prepared By</Label>
+                      <Input
+                        value={icForm.preparedBy || ""}
+                        onChange={(e) => setIC("preparedBy", e.target.value)}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <Label>Remarks</Label>
+                      <Input
+                        value={icForm.remarks || ""}
+                        onChange={(e) => setIC("remarks", e.target.value)}
+                        className="mt-1"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t mt-6">
+                <Button variant="outline" onClick={() => setIcOpen(false)}>
+                  Close
+                </Button>
+                <Button
+                  className="bg-blue-600 hover:bg-blue-700"
+                  onClick={() => setIcMode("preview")}
+                >
+                  <Eye className="h-4 w-4 mr-1" /> Generate Preview
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* PREVIEW */}
+          {icMode === "preview" && icForm && (
+            <div className="overflow-y-auto max-h-[70vh]">
+              <div
+                ref={icPrintRef}
+                className="bg-white text-black p-8 border rounded-md"
+              >
+                <div
+                  className="text-center pb-3 mb-4"
+                  style={{ borderBottom: "2px solid #111" }}
+                >
+                  <div className="text-2xl font-bold">
+                    Vikramshila Automobiles Pvt Ltd. - INTERNAL COSTING SHEET
+                  </div>
+                  <div className="text-sm" style={{ color: "#b91c1c" }}>
+                    For Dealer Management Use Only
+                  </div>
+                </div>
+
+                {/* Vehicle Info */}
+                <div className="mb-4">
+                  <div className="font-semibold mb-2">Vehicle Information</div>
+                  <table
+                    className="w-full"
+                    style={{ borderCollapse: "collapse" }}
+                  >
+                    <thead>
+                      <tr>
+                        {[
+                          "Model",
+                          "Category",
+                          "Variant",
+                          "Fuel",
+                          "Payload/Seating",
+                          "Ex-Showroom (OEM TP)",
+                        ].map((h) => (
+                          <th
+                            key={h}
+                            style={{
+                              border: "1px solid #000",
+                              padding: 6,
+                              textAlign: "left",
+                            }}
+                          >
+                            {h}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td style={{ border: "1px solid #000", padding: 6 }}>
+                          {icForm.model || "—"}
+                        </td>
+                        <td style={{ border: "1px solid #000", padding: 6 }}>
+                          {icForm.category || "—"}
+                        </td>
+                        <td style={{ border: "1px solid #000", padding: 6 }}>
+                          {icForm.variant || "—"}
+                        </td>
+                        <td style={{ border: "1px solid #000", padding: 6 }}>
+                          {icForm.fuel || "—"}
+                        </td>
+                        <td style={{ border: "1px solid #000", padding: 6 }}>
+                          {icForm.payloadSeating || "—"}
+                        </td>
+                        <td
+                          style={{
+                            border: "1px solid #000",
+                            padding: 6,
+                            textAlign: "right",
+                          }}
+                        >
+                          ₹ {formatINR(icForm.exShowroomOemTp)}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* A) Cost Adders */}
+                <div className="mb-4">
+                  <div className="font-semibold mb-2">
+                    A) Cost Adders (Dealer Expenses)
+                  </div>
+                  <table
+                    className="w-full"
+                    style={{ borderCollapse: "collapse" }}
+                  >
+                    <tbody>
+                      {[
+                        [
+                          "Dealer Handling Cost (Logistics, PDI, Admin)",
+                          icForm.handlingCost,
+                        ],
+                        [
+                          "Exchange/Buyback Subsidy (Dealer Share)",
+                          icForm.exchangeBuybackSubsidy,
+                        ],
+                        [
+                          "Scheme / Discount Contribution by Dealer",
+                          icForm.dealerSchemeContribution,
+                        ],
+                        [
+                          "Fabrication Cost (Dealer Share)",
+                          icForm.fabricationCost,
+                        ],
+                        [
+                          "Marketing Cost (Per Vehicle Allocation)",
+                          icForm.marketingCost,
+                        ],
+                        ["Subtotal: Cost Adders (₹)", icForm.addersSubtotal],
+                      ].map(([k, v], i) => (
+                        <tr key={i}>
+                          <td style={{ border: "1px solid #000", padding: 6 }}>
+                            {k as string}
+                          </td>
+                          <td
+                            style={{
+                              border: "1px solid #000",
+                              padding: 6,
+                              textAlign: "right",
+                            }}
+                          >
+                            ₹ {formatINR(v as number)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* B) Earnings & Supports */}
+                <div className="mb-4">
+                  <div className="font-semibold mb-2">
+                    B) Earnings & Supports (Reduce Net Cost)
+                  </div>
+                  <table
+                    className="w-full"
+                    style={{ borderCollapse: "collapse" }}
+                  >
+                    <tbody>
+                      {[
+                        ["Dealer Margin (₹)", icForm.dealerMargin],
+                        ["Insurance Commission", icForm.insuranceCommission],
+                        ["Finance Commission", icForm.financeCommission],
+                        [
+                          "Scheme / Discount Support from OEM",
+                          icForm.oemSchemeSupport,
+                        ],
+                        [
+                          "Early Bird Scheme Support",
+                          icForm.earlyBirdSchemeSupport,
+                        ],
+                        [
+                          "Target Achievement Discount (Monthly/Monthly Slab)",
+                          icForm.targetAchievementDiscount,
+                        ],
+                        ["RTO Earnings", icForm.rtoEarnings],
+                        [
+                          "Quarterly Target Earnings",
+                          icForm.quarterlyTargetEarnings,
+                        ],
+                        [
+                          "Additional Supports / Claims",
+                          icForm.additionalSupportsClaims,
+                        ],
+                        [
+                          "Subtotal: Earnings & Supports (₹)",
+                          icForm.earningsSubtotal,
+                        ],
+                      ].map(([k, v], i) => (
+                        <tr key={i}>
+                          <td style={{ border: "1px solid #000", padding: 6 }}>
+                            {k as string}
+                          </td>
+                          <td
+                            style={{
+                              border: "1px solid #000",
+                              padding: 6,
+                              textAlign: "right",
+                            }}
+                          >
+                            ₹ {formatINR(v as number)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* C) Summary */}
+                <div className="mb-4">
+                  <div className="font-semibold mb-2">
+                    C) Net Dealer Cost & Profitability
+                  </div>
+                  <table
+                    className="w-full"
+                    style={{ borderCollapse: "collapse" }}
+                  >
+                    <tbody>
+                      {[
+                        [
+                          "Base Vehicle Cost (Ex-Showroom OEM TP)",
+                          icForm.baseVehicleCost,
+                        ],
+                        ["Total Cost Adders", icForm.totalCostAdders],
+                        [
+                          "Total Earnings & Supports",
+                          icForm.totalEarningsSupports,
+                        ],
+                        [
+                          "Net Dealer Cost (₹) = Base + Adders – Earnings",
+                          icForm.netDealerCost,
+                        ],
+                        [
+                          "Customer Quoted Price (₹)",
+                          icForm.customerQuotedPrice,
+                        ],
+                        [
+                          "Dealer Profit per Vehicle (₹) = Quoted – Net Dealer Cost",
+                          icForm.dealerProfitPerVehicle,
+                        ],
+                      ].map(([k, v], i) => (
+                        <tr key={i}>
+                          <td style={{ border: "1px solid #000", padding: 6 }}>
+                            {k as string}
+                          </td>
+                          <td
+                            style={{
+                              border: "1px solid #000",
+                              padding: 6,
+                              textAlign: "right",
+                              fontWeight: i >= 3 ? 700 : 400,
+                            }}
+                          >
+                            ₹ {formatINR(v as number)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {(icForm.preparedBy || icForm.remarks) && (
+                  <div className="text-sm">
+                    {icForm.preparedBy && (
+                      <div>
+                        <b>Prepared By:</b> {icForm.preparedBy}
+                      </div>
+                    )}
+                    {icForm.remarks && (
+                      <div>
+                        <b>Remarks:</b> {icForm.remarks}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}

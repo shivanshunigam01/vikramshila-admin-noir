@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
   Package,
@@ -12,6 +12,7 @@ import {
   X,
   LogOut,
   User,
+  MessageCircleQuestion,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,9 +28,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { MessageCircleQuestion } from "lucide-react";
 
-// ✅ Keep a base list for non-DSE users
+/** Admin nav (non-DSE) */
 const BASE_NAV_ITEMS = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { name: "Products", href: "/admin/products", icon: Package },
@@ -47,40 +47,53 @@ const BASE_NAV_ITEMS = [
   { name: "Leads", href: "/admin/leads", icon: Users },
 ];
 
-// ✅ Single source for the Leads-only item (for DSE emails)
-const LEADS_ONLY = [{ name: "Leads", href: "/admin/leads", icon: Users }];
+/** DSE nav */
+const DSE_NAV_ITEMS = [
+  { name: "My Leads", href: "/admin/dse-leads", icon: Users },
+];
+
+type AdminUser = {
+  name?: string;
+  email?: string;
+  role?: string; // "admin" | "editor" | "dse" | ...
+};
 
 export default function AdminLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
 
-  // ✅ Read current user from localStorage and detect DSE by email prefix
-  const isDSEUser = useMemo(() => {
+  const { isDSEUser, displayName, displayRole } = useMemo(() => {
     try {
       const raw = localStorage.getItem("admin_user");
-      if (!raw) return false;
-      const parsed = JSON.parse(raw) as { email?: string } | null;
-      const email = (parsed?.email || "").toLowerCase().trim();
-      return email.startsWith("dse");
+      const u = raw ? (JSON.parse(raw) as AdminUser) : {};
+      const role = (u?.role || "").toLowerCase();
+      const email = (u?.email || "").toLowerCase().trim();
+      const isDSE = role === "dse" || email.startsWith("dse");
+      return {
+        isDSEUser: isDSE,
+        displayName: u?.name || u?.email || "User",
+        displayRole: role || (isDSE ? "dse" : "admin"),
+      };
     } catch {
-      return false;
+      return { isDSEUser: false, displayName: "User", displayRole: "admin" };
     }
   }, []);
 
-  // ✅ Compute nav items based on user type
-  const navigationItems = useMemo(
-    () => (isDSEUser ? LEADS_ONLY : BASE_NAV_ITEMS),
-    [isDSEUser]
-  );
+  // If a DSE lands on /admin, push them to /admin/dse-leads
+  useEffect(() => {
+    if (isDSEUser && location.pathname === "/admin") {
+      navigate("/admin/dse-leads", { replace: true });
+    }
+  }, [isDSEUser, location.pathname, navigate]);
+
+  const navigationItems = isDSEUser ? DSE_NAV_ITEMS : BASE_NAV_ITEMS;
 
   const handleLogout = () => {
     localStorage.removeItem("admin_token");
     localStorage.removeItem("admin_user");
     sessionStorage.clear();
-    toast({
-      title: "Logged Out",
-      description: "You have been successfully logged out.",
-    });
+    toast({ title: "Logged Out", description: "You have been logged out." });
     navigate("/");
   };
 
@@ -111,7 +124,9 @@ export default function AdminLayout() {
             </div>
             <div className="hidden sm:block">
               <h1 className="text-lg font-semibold">Vikramshila Automobiles</h1>
-              <p className="text-xs text-muted-foreground">Admin Panel</p>
+              <p className="text-xs text-muted-foreground">
+                {isDSEUser ? "DSE Panel" : "Admin Panel"}
+              </p>
             </div>
           </div>
         </div>
@@ -120,7 +135,10 @@ export default function AdminLayout() {
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" className="gap-2">
             <User className="h-4 w-4" />
-            <span className="hidden sm:inline">Admin</span>
+            <span className="hidden sm:inline">{displayName}</span>
+            <span className="hidden sm:inline text-muted-foreground">
+              ({displayRole})
+            </span>
           </Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
@@ -132,8 +150,7 @@ export default function AdminLayout() {
               <AlertDialogHeader>
                 <AlertDialogTitle>Logout Confirmation</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Are you sure you want to logout? You will need to login again
-                  to access the admin panel.
+                  Are you sure you want to logout?
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
