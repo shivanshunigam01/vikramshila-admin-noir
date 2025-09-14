@@ -529,9 +529,17 @@ export default function Leads() {
 
   const emailQuotation = async () => {
     if (!qLead || !qForm) return;
-    const defaultEmail = qLead.userEmail || "";
-    const to = window.prompt("Recipient email address", defaultEmail || "");
-    if (!to) return;
+
+    // use saved email, no alerts
+    const to = (qLead.userEmail || "").trim();
+    if (!to) {
+      toast({
+        title: "Missing email",
+        description: "No email found for this lead.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     const id = await ensureSavedQuotation();
     if (!id) return;
@@ -548,27 +556,28 @@ export default function Leads() {
     }
   };
 
-  const smsQuotation = async () => {
+  const smsQuotation = async (via: "sms" | "whatsapp" = "sms") => {
     if (!qLead || !qForm) return;
-    const defaultPhone = qForm.contactNumber || qLead.userPhone || "";
-    const to = window.prompt(
-      "Recipient phone (E.164, e.g. +9198XXXXXXXX)",
-      defaultPhone || ""
-    );
-    if (!to) return;
 
-    // ask SMS or WhatsApp (simple selection)
-    const channel = window.prompt(
-      'Type "whatsapp" for WA, or press OK for SMS',
+    // prefer form contact, fallback to lead phone; strip spaces
+    const to = (qForm.contactNumber || qLead.userPhone || "").replace(
+      /\s+/g,
       ""
     );
-    const via = channel?.toLowerCase() === "whatsapp" ? "whatsapp" : "sms";
+    if (!to) {
+      toast({
+        title: "Missing phone",
+        description: "No phone number found for this lead.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     const id = await ensureSavedQuotation();
     if (!id) return;
 
     try {
-      const r = await sendQoutationSMS(id, to, via as "sms" | "whatsapp");
+      const r = await sendQoutationSMS(id, to, via);
       toast({
         title: via === "whatsapp" ? "WhatsApp sent" : "SMS sent",
         description: r?.message || "Delivered.",
@@ -1582,16 +1591,28 @@ export default function Leads() {
                   )}
                 </Button>
 
-                {/* NEW: Email */}
                 <Button size="sm" variant="outline" onClick={emailQuotation}>
                   <Mail className="h-4 w-4 mr-1" />
                   Email
                 </Button>
 
-                {/* NEW: SMS / WhatsApp */}
-                <Button size="sm" variant="outline" onClick={smsQuotation}>
+                {/* SMS – no prompts */}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => smsQuotation("sms")}
+                >
                   <Phone className="h-4 w-4 mr-1" />
-                  SMS / WhatsApp
+                  SMS
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => smsQuotation("whatsapp")}
+                >
+                  <Phone className="h-4 w-4 mr-1" />
+                  WhatsApp
                 </Button>
 
                 <Button size="sm" onClick={printQuotation}>
