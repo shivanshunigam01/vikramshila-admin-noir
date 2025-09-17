@@ -1,5 +1,4 @@
 import axiosInstance from "@/api/axiosInstance";
-
 const API_URL = import.meta.env.VITE_API_URL;
 
 interface LoginPayload {
@@ -8,12 +7,14 @@ interface LoginPayload {
 }
 
 export const login = async (data: LoginPayload) => {
-  try {
-    const res = await axiosInstance.post(`${API_URL}/auth/login`, data, {
-      withCredentials: true, // include cookies if backend sends them
-    });
-    return res.data; // your backend RESP.ok format
-  } catch (error: any) {
-    throw error.response?.data || { message: "Login failed" };
-  }
+  const res = await axiosInstance.post(`${API_URL}/auth/login`, data, {
+    withCredentials: true, // fine; only affects cookies
+  });
+
+  // Normalize the backend shape to { token, user }
+  const d = res?.data ?? {};
+  const token = d?.data?.token ?? d?.token ?? null;
+  const user = d?.data?.user ?? d?.user ?? null;
+
+  return { token, user, raw: d };
 };

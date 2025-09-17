@@ -13,6 +13,7 @@ import {
   LogOut,
   User,
   MessageCircleQuestion,
+  BarChart3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,17 +40,21 @@ const BASE_NAV_ITEMS = [
   // { name: "New Launches", href: "/admin/launches", icon: Rocket },
   { name: "Services", href: "/admin/services", icon: Settings },
   { name: "Enquiries", href: "/admin/enquiries", icon: Mail },
+  { name: "Reports", href: "/admin/reports", icon: BarChart3 },
+
   {
     name: "Grievances",
     href: "/admin/grievances",
     icon: MessageCircleQuestion,
   },
   { name: "Leads", href: "/admin/leads", icon: Users },
+  { name: "Users", href: "/admin/users", icon: Users },
 ];
 
 /** DSE nav */
 const DSE_NAV_ITEMS = [
   { name: "My Leads", href: "/admin/dse-leads", icon: Users },
+  { name: "My Enquiries", href: "/admin/dse-enquiry", icon: Users },
 ];
 
 type AdminUser = {

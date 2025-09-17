@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom"; // ✅ add this
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,61 +14,71 @@ interface LoginFormProps {
 }
 
 export default function LoginForm({ onLogin, onCancel }: LoginFormProps) {
-  const [formData, setFormData] = useState({
-    username: "",
-    password: "",
-  });
+  const [formData, setFormData] = useState({ email: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
-  const navigate = useNavigate(); // ✅ hook for navigation
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    // debugger;
     try {
-      const response = await login({
-        email: formData.username,
+      const { token, user } = await login({
+        email: formData.email,
         password: formData.password,
       });
 
-      // ✅ if login is successful
-      if (response?.data?.token) {
-        localStorage.setItem("admin_token", response?.data?.token);
-        localStorage.setItem(
-          "admin_user",
-          JSON.stringify(response?.data?.user)
-        );
-
+      if (!token || !user) {
+        console.warn("[login] Missing token/user in response", { token, user });
         toast({
-          title: "Login Successful",
-          description: `Welcome ${response.data.user.name}`,
+          title: "Login response unexpected",
+          description: "Token or user not found in response.",
+          variant: "destructive",
         });
-
-        onLogin(); // ✅ parent decides where to go
-        setIsLoading(false);
+        return;
       }
+
+      // ✅ persist to localStorage (and verify)
+      try {
+        console.log("[login] setting storage on", window.location.origin);
+        localStorage.setItem("admin_token", String(token));
+        localStorage.setItem("admin_user", JSON.stringify(user));
+
+        const checkToken = localStorage.getItem("admin_token");
+        const checkUser = localStorage.getItem("admin_user");
+        console.log("[login] written values", { checkToken, checkUser });
+      } catch (storageErr) {
+        console.error("[login] localStorage error", storageErr);
+        toast({
+          title: "Storage blocked",
+          description:
+            "Could not save login to local storage (blocked by browser or sandbox).",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Login Successful",
+        description: `Welcome ${user?.name || ""}`,
+      });
+
+      onLogin?.();
+      // or navigate("/admin");
     } catch (err: any) {
-      if (err) {
-        toast({
-          title: "Login Failed",
-          description:
-            err.response?.data?.message || "Invalid username or password",
-          variant: "destructive",
-        });
-        setIsLoading(false);
-      } else {
-        toast({
-          title: "Error",
-          description:
-            err.response?.data?.message ||
-            "Something went wrong. Please try again.",
-          variant: "destructive",
-        });
-        setIsLoading(false);
-      }
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        "Invalid email or password";
+      toast({
+        title: "Login Failed",
+        description: msg,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -81,17 +91,18 @@ export default function LoginForm({ onLogin, onCancel }: LoginFormProps) {
           </div>
           <CardTitle className="text-2xl">Admin Login</CardTitle>
         </CardHeader>
+
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
+              <Label htmlFor="email">Email</Label>
               <Input
-                id="username"
-                type="text"
-                placeholder="Enter your username"
-                value={formData.username}
+                id="email"
+                type="email"
+                placeholder="Enter your email"
+                value={formData.email}
                 onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, username: e.target.value }))
+                  setFormData((prev) => ({ ...prev, email: e.target.value }))
                 }
                 required
               />
@@ -118,12 +129,13 @@ export default function LoginForm({ onLogin, onCancel }: LoginFormProps) {
                   variant="ghost"
                   size="sm"
                   className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                  onClick={() => setShowPassword(!showPassword)}
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? (
                     <EyeOff className="h-4 w-4 text-black" />
                   ) : (
-                    <EyeOff className="h-4 w-4 text-black" />
+                    <Eye className="h-4 w-4 text-black" />
                   )}
                 </Button>
               </div>
@@ -157,16 +169,6 @@ export default function LoginForm({ onLogin, onCancel }: LoginFormProps) {
               </Button>
             </div>
           </form>
-
-          {/* <div className="mt-6 p-3 bg-muted/20 rounded-lg">
-            <p className="text-xs text-muted-foreground text-center">
-              Demo Credentials:
-              <br />
-              Username: <span className="font-mono">admin</span>
-              <br />
-              Password: <span className="font-mono">admin123</span>
-            </p>
-          </div> */}
         </CardContent>
       </Card>
     </div>

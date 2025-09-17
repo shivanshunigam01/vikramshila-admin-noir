@@ -29,21 +29,21 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   assignEnquiry,
-  getEnquiries,
+  getMyAssignedEnquiries,
   updateEnquiryByDse,
 } from "@/services/enquiriesService";
 
 type Enquiry = {
   id: string;
-  name: string;
-  email?: string;
-  phone?: string;
-  model?: string;
-  panNumber?: string;
-  aadharNumber?: string;
+  name: string; // fullName
+  email?: string; // (not in schema; kept optional)
+  phone?: string; // mobileNumber
+  model?: string; // product (we’ll show as “Product”)
+  panNumber?: string; // only if you later add to schema
+  aadharNumber?: string; // only if you later add to schema
   status: "C0" | "C1" | "C2" | "C3";
   createdAt?: string;
-  assignedTo?: string;
+  assignedTo?: string; // populated DSE name / id / legacy string
   dseUpdates?: { message: string; status: string; createdAt: string }[];
 };
 
@@ -55,7 +55,7 @@ export default function DSEEnquiries() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
-  // dialogs
+  // dialog states
   const [updateOpen, setUpdateOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
 
@@ -79,37 +79,33 @@ export default function DSEEnquiries() {
   const fetchEnquiries = async () => {
     setLoading(true);
     try {
-      const res = await getEnquiries(); // should call /enquiries/list
-      // backend returns { success, message, data: [...] }
-      const apiData = Array.isArray(res?.data)
-        ? res.data
-        : res?.data?.data ?? [];
+      const res = await getMyAssignedEnquiries(); // calls /enquiries/list
+      const apiData = Array.isArray(res?.data) ? res.data : [];
 
-      const mapped: Enquiry[] = apiData.filter(Boolean).map(
-        (e: any): Enquiry => ({
-          id: e._id,
-          name: e.fullName ?? "-", // <-- map fullName
-          email: e.email ?? undefined, // (not in schema; keep if present)
-          phone: e.mobileNumber ?? "", // <-- map mobileNumber
-          model: e.product ?? "", // <-- map product
-          panNumber: e.panNumber ?? undefined, // (not in schema; keep if present)
-          aadharNumber: e.aadharNumber ?? undefined, // (not in schema; keep if present)
-          status: e.status ?? "C0",
-          createdAt: e.createdAt,
-          assignedTo:
-            e?.assignedToId?.name ??
-            e?.assignedTo ??
-            e?.assignedToId?._id ??
-            undefined,
-          dseUpdates: e.dseUpdates ?? [],
-        })
-      );
+      // Map to your UI shape (matches Enquiry schema fields)
+      const mapped: Enquiry[] = apiData.filter(Boolean).map((e: any) => ({
+        id: e._id,
+        name: e.fullName || "-", // ✅ from schema
+        email: e.email, // (not in schema; may be undefined)
+        phone: e.mobileNumber, // ✅ from schema
+        model: e.product, // ✅ from schema (displayed as Product)
+        panNumber: e.panNumber, // if you add later
+        aadharNumber: e.aadharNumber, // if you add later
+        status: e.status || "C0",
+        createdAt: e.createdAt,
+        assignedTo:
+          e?.assignedToId?.name ||
+          e?.assignedTo || // legacy string
+          e?.assignedToId?._id ||
+          undefined,
+        dseUpdates: e.dseUpdates || [],
+      }));
 
       setEnquiries(mapped);
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error?.message || "Failed to fetch enquiries",
+        description: error.message || "Failed to fetch enquiries",
         variant: "destructive",
       });
     } finally {
@@ -149,6 +145,7 @@ export default function DSEEnquiries() {
     [enquiries, searchTerm, statusFilter]
   );
 
+  // --- DSE list loader ---
   const loadDseOptions = async () => {
     setDseLoading(true);
     try {
@@ -168,6 +165,7 @@ export default function DSEEnquiries() {
     }
   };
 
+  // open assign dialog
   const openAssign = (enquiry: Enquiry) => {
     setAssignFor(enquiry);
     setAssignee("");
@@ -175,6 +173,7 @@ export default function DSEEnquiries() {
     loadDseOptions();
   };
 
+  // open update dialog
   const openUpdate = (enquiry: Enquiry) => {
     setUpdateFor(enquiry);
     setNewStatus(enquiry.status);
@@ -182,6 +181,7 @@ export default function DSEEnquiries() {
     setUpdateOpen(true);
   };
 
+  // confirm update
   const confirmUpdate = async () => {
     if (!updateFor) return;
     setUpdating(true);
@@ -211,7 +211,10 @@ export default function DSEEnquiries() {
         )
       );
 
-      toast({ title: "Updated", description: "Enquiry status updated." });
+      toast({
+        title: "Updated",
+        description: "Enquiry status updated successfully.",
+      });
       setUpdateOpen(false);
     } catch (e: any) {
       toast({
@@ -224,6 +227,7 @@ export default function DSEEnquiries() {
     }
   };
 
+  // confirm assign
   const confirmAssign = async () => {
     if (!assignFor || !assignee) {
       toast({
@@ -243,11 +247,11 @@ export default function DSEEnquiries() {
             ? {
                 ...e,
                 assignedTo:
-                  updated?.assignedToId?.name ??
-                  updated?.assignedTo ??
-                  updated?.assignedToId?._id ??
+                  updated?.assignedToId?.name ||
+                  updated?.assignedTo ||
+                  updated?.assignedToId?._id ||
                   e.assignedTo,
-                status: updated?.status || e.status,
+                status: updated?.status || e.status || "C0",
               }
             : e
         )
@@ -263,7 +267,7 @@ export default function DSEEnquiries() {
     } catch (e: any) {
       toast({
         title: "Error",
-        description: e?.message || "Failed to assign",
+        description: e?.message || "Failed to assign enquiry",
         variant: "destructive",
       });
     } finally {
@@ -273,12 +277,11 @@ export default function DSEEnquiries() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-3">
             <Mail className="h-8 w-8 text-primary" />
-            My Enquiries
+            My DSE Enquiries
           </h1>
           <p className="text-muted-foreground">
             Track and manage enquiries assigned to you
@@ -334,7 +337,7 @@ export default function DSEEnquiries() {
         </div>
       )}
 
-      {/* Grid */}
+      {/* Enquiries Grid */}
       {!loading && (
         <div className="grid gap-4 lg:grid-cols-2">
           {filteredEnquiries.map((enquiry) => (
@@ -396,6 +399,7 @@ export default function DSEEnquiries() {
                   </div>
                 </div>
 
+                {/* Action buttons */}
                 <div className="flex gap-2 pt-2">
                   <Button
                     size="sm"
@@ -403,15 +407,6 @@ export default function DSEEnquiries() {
                     onClick={() => openUpdate(enquiry)}
                   >
                     Update Status
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => openAssign(enquiry)}
-                  >
-                    <UserCircle2 className="h-3 w-3" />
-                    Assign to DSE
                   </Button>
                 </div>
               </CardContent>
