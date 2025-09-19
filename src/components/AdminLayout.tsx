@@ -14,6 +14,7 @@ import {
   User,
   MessageCircleQuestion,
   BarChart3,
+  MapPin,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -49,6 +50,8 @@ const BASE_NAV_ITEMS = [
   },
   { name: "Leads", href: "/admin/leads", icon: Users },
   { name: "Users", href: "/admin/users", icon: Users },
+  { name: "DSE Tracker", href: "/admin/dse", icon: MapPin },
+  // { name: "DSE Location", href: "/admin/dse/:dseId/location", icon: MapPin },
 ];
 
 /** DSE nav */

@@ -21,6 +21,8 @@ import DSELeads from "./pages/DseLeads";
 import UserRegistration from "./pages/UserRegistration";
 import DSEEnquiries from "./pages/DseEnquiries";
 import ReportsDashboard from "./pages/ReportsDashboard";
+import DSEList from "./pages/DSEList";
+import DSELocation from "./pages/DSELocation";
 
 const queryClient = new QueryClient();
 
@@ -50,6 +52,11 @@ const App = () => (
             <Route path="dse-enquiry" element={<DSEEnquiries />} />
             <Route path="users" element={<UserRegistration />} />
             <Route path="reports" element={<ReportsDashboard />} />
+            <Route path="dse" element={<DSEList />} />
+            <Route
+              path="/admin/dse-location/:dseId"
+              element={<DSELocation />}
+            />
           </Route>
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
