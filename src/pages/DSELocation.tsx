@@ -69,7 +69,7 @@ function DSELocation() {
       (async () => {
         try {
           setLoading(true);
-          const data = await getDSELocation(dseId);
+          const data = await asdadasdasdasasd(dseId);
           setLocation(data);
           await fetchAddress(data.lat, data.lon);
         } catch (error) {

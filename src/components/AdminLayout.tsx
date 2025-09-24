@@ -5,7 +5,6 @@ import {
   Package,
   Gift,
   Users,
-  Rocket,
   Settings,
   Mail,
   Menu,
@@ -15,6 +14,8 @@ import {
   MessageCircleQuestion,
   BarChart3,
   MapPin,
+  Image, // ✅ needed for "Banner Images"
+  CalendarRange, // ✅ needed for "Attendance (Day)"
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,33 +32,48 @@ import {
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-/** Admin nav (non-DSE) */
-const BASE_NAV_ITEMS = [
+/* ----------------------------- Types ----------------------------- */
+type IconType = React.ComponentType<React.SVGProps<SVGSVGElement>>;
+
+type NavItem =
+  | { name: string; href: string; icon: IconType; type?: undefined }
+  | { type: "section"; label: string };
+
+/* ----------------------------- Nav Configs ----------------------------- */
+export const BASE_NAV_ITEMS: NavItem[] = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { name: "Products", href: "/admin/products", icon: Package },
   { name: "Schemes & Offers", href: "/admin/schemes", icon: Gift },
   { name: "Testimonials", href: "/admin/testimonials", icon: Users },
-  { name: "Banner Images", href: "/admin/banner", icon: Users },
-  // { name: "New Launches", href: "/admin/launches", icon: Rocket },
+  { name: "Banner Images", href: "/admin/banner", icon: Image }, // ✅ fixed
   { name: "Services", href: "/admin/services", icon: Settings },
   { name: "Enquiries", href: "/admin/enquiries", icon: Mail },
-  { name: "Reports", href: "/admin/reports", icon: BarChart3 },
+  { name: "Leads", href: "/admin/leads", icon: Users },
+  { name: "Users", href: "/admin/users", icon: Users },
 
+  { type: "section", label: "DSE" },
+  { name: "DSE Live Map", href: "/admin/dse", icon: MapPin },
+  { name: "DSE Reports", href: "/admin/dse-reports", icon: BarChart3 },
+  {
+    name: "Attendance (Day)",
+    href: "/admin/dse-reports?tab=attendance",
+    icon: CalendarRange,
+  },
+
+  { type: "section", label: "Other" },
+  { name: "Reports", href: "/admin/reports", icon: BarChart3 },
   {
     name: "Grievances",
     href: "/admin/grievances",
     icon: MessageCircleQuestion,
   },
-  { name: "Leads", href: "/admin/leads", icon: Users },
-  { name: "Users", href: "/admin/users", icon: Users },
-  { name: "DSE Tracker", href: "/admin/dse", icon: MapPin },
-  // { name: "DSE Location", href: "/admin/dse/:dseId/location", icon: MapPin },
 ];
 
-/** DSE nav */
-const DSE_NAV_ITEMS = [
+export const DSE_NAV_ITEMS: NavItem[] = [
   { name: "My Leads", href: "/admin/dse-leads", icon: Users },
-  { name: "My Enquiries", href: "/admin/dse-enquiry", icon: Users },
+  { name: "My Enquiries", href: "/admin/dse-enquiry", icon: Mail },
+  // (Optional)
+  // { name: "My Attendance", href: "/admin/dse-reports?tab=attendance&mine=1", icon: CalendarRange },
 ];
 
 type AdminUser = {
@@ -88,14 +104,17 @@ export default function AdminLayout() {
     }
   }, []);
 
-  // If a DSE lands on /admin, push them to /admin/dse-leads
+  // Redirect DSE landing to their leads
   useEffect(() => {
     if (isDSEUser && location.pathname === "/admin") {
       navigate("/admin/dse-leads", { replace: true });
     }
   }, [isDSEUser, location.pathname, navigate]);
 
-  const navigationItems = isDSEUser ? DSE_NAV_ITEMS : BASE_NAV_ITEMS;
+  const navigationItems: NavItem[] = useMemo(
+    () => (isDSEUser ? DSE_NAV_ITEMS : BASE_NAV_ITEMS),
+    [isDSEUser]
+  );
 
   const handleLogout = () => {
     localStorage.removeItem("admin_token");
@@ -114,7 +133,7 @@ export default function AdminLayout() {
             variant="ghost"
             size="icon"
             className="lg:hidden"
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            onClick={() => setIsSidebarOpen((v) => !v)}
           >
             {isSidebarOpen ? (
               <X className="h-5 w-5" />
@@ -186,31 +205,54 @@ export default function AdminLayout() {
           <div className="flex h-full flex-col">
             <div className="flex-1 overflow-y-auto py-6">
               <nav className="px-4 space-y-2">
-                {navigationItems.map((item) => (
-                  <NavLink
-                    key={item.name}
-                    to={item.href}
-                    end={item.href === "/admin"}
-                    className={({ isActive }) =>
-                      cn(
-                        "flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200",
-                        isActive
-                          ? "bg-primary text-primary-foreground vikram-button"
-                          : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                      )
-                    }
-                    onClick={() => setIsSidebarOpen(false)}
-                  >
-                    <item.icon className="h-4 w-4" />
-                    {item.name}
-                  </NavLink>
-                ))}
+                {navigationItems.map((item, idx) => {
+                  if (item.type === "section") {
+                    // item is narrowed to the section type here
+                    return (
+                      <div
+                        key={`sec-${idx}-${item.label}`}
+                        className="px-3 pt-4 pb-2 text-xs uppercase tracking-wider text-gray-500"
+                      >
+                        {item.label}
+                      </div>
+                    );
+                  }
+
+                  const nav = item as {
+                    name: string;
+                    href: string;
+                    icon: IconType;
+                  };
+
+                  return (
+                    <NavLink
+                      key={nav.href}
+                      to={nav.href}
+                      end={nav.href === "/admin"}
+                      className={({ isActive }) =>
+                        cn(
+                          "flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200",
+                          isActive
+                            ? "bg-primary text-primary-foreground vikram-button"
+                            : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                        )
+                      }
+                      onClick={() => setIsSidebarOpen(false)}
+                    >
+                      {(() => {
+                        const Icon = nav.icon;
+                        return <Icon className="h-4 w-4" />;
+                      })()}
+                      {nav.name}
+                    </NavLink>
+                  );
+                })}
               </nav>
             </div>
           </div>
         </aside>
 
-        {/* Overlay */}
+        {/* Overlay (mobile) */}
         {isSidebarOpen && (
           <div
             className="fixed inset-0 top-16 z-20 bg-black/50 lg:hidden"
