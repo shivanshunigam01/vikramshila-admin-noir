@@ -55,8 +55,10 @@ function initials(name = "") {
   return ((parts[0]?.[0] || "U") + (parts[1]?.[0] || "")).toUpperCase();
 }
 
-// ---------- pretty pin icon (SVG) ----------
+// ---------- pretty pin icon (SVG) + small cache ----------
+const ICON_CACHE: Record<string, L.DivIcon> = {};
 function pinIcon(color: string) {
+  if (ICON_CACHE[color]) return ICON_CACHE[color];
   // 28x40 pin, white border, colored fill, drop shadow
   const html = `
   <div class="va-pin">
@@ -72,7 +74,7 @@ function pinIcon(color: string) {
       <circle cx="14" cy="13" r="4.5" fill="white"/>
     </svg>
   </div>`;
-  return L.divIcon({
+  ICON_CACHE[color] = L.divIcon({
     className: "va-pin-wrap",
     html,
     iconSize: [28, 40],
@@ -80,13 +82,13 @@ function pinIcon(color: string) {
     popupAnchor: [0, -34], // popup above the pin
     tooltipAnchor: [0, -36], // tooltip just above
   });
+  return ICON_CACHE[color];
 }
 
 // ---------- anti-overlap: smart spread ----------
 type P = { lat: number; lon: number } & Record<string, any>;
 function spreadClosePoints<T extends P>(rows: T[], meters = 30) {
-  if (!rows.length)
-    return rows.map((r) => ({ ...r, dispLat: r.lat, dispLon: r.lon }));
+  if (!rows.length) return [];
   const bucket = (x: number) => Math.round(x * 1e4) / 1e4; // ~11m bucket near equator
   const groups: Record<string, T[]> = {};
   for (const r of rows) {
@@ -274,6 +276,13 @@ export default function DSEMapAll() {
           </div>
         </div>
 
+        {/* Empty state */}
+        {!loading && spread.length === 0 && (
+          <div className="text-gray-400 bg-gray-900/60 border border-gray-800 rounded-xl p-4">
+            No matching DSE locations. Try clearing filters or expanding time.
+          </div>
+        )}
+
         {/* Map */}
         <div className="rounded-xl overflow-hidden shadow-2xl border border-gray-800">
           <MapContainer
@@ -337,9 +346,14 @@ export default function DSEMapAll() {
                         {new Date(p.ts).toLocaleString()}
                       </div>
                       <div className="pt-2 flex flex-wrap gap-2">
+                        {/* ✅ FIXED: use p.user / p.ts here */}
                         <Link
-                          to={`/admin/dse-location/${p.user}`}
-                          className="text-blue-600 underline"
+                          to={`/admin/dse-track/${
+                            p.user
+                          }?mode=day&date=${new Date(p.ts)
+                            .toISOString()
+                            .slice(0, 10)}`}
+                          className="text-blue-500 underline"
                         >
                           View detailed page →
                         </Link>
@@ -378,7 +392,7 @@ export default function DSEMapAll() {
       {/* styling for pin wrapper (keeps SVG crisp) */}
       <style>{`
         .va-pin-wrap { }
-        .va-pin { transform: translate(-14px, -40px); } /* handled by iconAnchor, but keeps html centered on tip */
+        .va-pin { transform: translate(-14px, -40px); }
       `}</style>
     </div>
   );

@@ -126,3 +126,71 @@ export const csvLatestAllUrl = (activeWithinMinutes?: number) =>
   `${API}/tracking/export/latest-all${
     activeWithinMinutes ? `?activeWithinMinutes=${activeWithinMinutes}` : ""
   }`;
+
+// ----- Detailed tracks -----
+export const getDSETrackDay = async (
+  id: string,
+  dateISO?: string,
+  maxAcc?: number,
+  sampleSec?: number
+) => {
+  const { data } = await axios.get(`${API}/tracking/track/day/${id}`, {
+    params: { date: dateISO, maxAcc, sampleSec },
+    withCredentials: true,
+  });
+  return data as {
+    userId: string;
+    date: string;
+    points: { ts: string; lat: number; lon: number; acc?: number }[];
+    coords: [number, number][];
+    stats: {
+      first: string | null;
+      last: string | null;
+      pings: number;
+      distanceKm: number;
+    };
+  };
+};
+
+export const getDSETrackRange = async (
+  id: string,
+  fromISO: string,
+  toISO: string,
+  maxAcc?: number,
+  sampleSec?: number
+) => {
+  const { data } = await axios.get(`${API}/tracking/track/range/${id}`, {
+    params: { from: fromISO, to: toISO, maxAcc, sampleSec },
+    withCredentials: true,
+  });
+  return data as {
+    userId: string;
+    from: string;
+    to: string;
+    days: {
+      date: string;
+      points: { ts: string; lat: number; lon: number; acc?: number }[];
+      coords: [number, number][];
+      stats: {
+        first: string | null;
+        last: string | null;
+        pings: number;
+        distanceKm: number;
+      };
+    }[];
+  };
+};
+
+export const csvTrackDayUrl = (
+  id: string,
+  dateISO?: string,
+  maxAcc?: number,
+  sampleSec?: number
+) => {
+  const qs = new URLSearchParams();
+  if (dateISO) qs.set("date", dateISO);
+  if (maxAcc) qs.set("maxAcc", String(maxAcc));
+  if (sampleSec) qs.set("sampleSec", String(sampleSec));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return `${API}/tracking/export/track/day/${id}.csv${suffix}`;
+};

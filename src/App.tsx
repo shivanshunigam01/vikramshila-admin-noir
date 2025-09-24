@@ -26,6 +26,7 @@ import DSELocation from "./pages/DSELocation";
 import DSEMapAll from "./pages/DSEMapAll";
 import DSEReports from "./pages/DSEReports";
 import DSEReportsDse from "./pages/DSEReportsDse";
+import DSETrackDetail from "./pages/DSETrackDetail";
 
 const queryClient = new QueryClient();
 
@@ -67,6 +68,7 @@ const App = () => (
               element={<DSELocation />}
             />
           </Route>
+          <Route path="/admin/dse-track/:dseId" element={<DSETrackDetail />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
