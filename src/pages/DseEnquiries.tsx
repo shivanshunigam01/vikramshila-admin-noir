@@ -197,7 +197,7 @@ export default function DSEEnquiries() {
           e.id === updateFor.id
             ? {
                 ...e,
-                status: updated?.status || newStatus,
+                status: (updated?.status || newStatus) as Enquiry["status"],
                 dseUpdates: [
                   ...(e.dseUpdates || []),
                   {
@@ -251,7 +251,7 @@ export default function DSEEnquiries() {
                   updated?.assignedTo ||
                   updated?.assignedToId?._id ||
                   e.assignedTo,
-                status: updated?.status || e.status || "C0",
+                status: ((updated?.status as Enquiry["status"]) || e.status || "C0") as Enquiry["status"],
               }
             : e
         )
