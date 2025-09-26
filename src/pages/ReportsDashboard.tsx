@@ -1,10 +1,7 @@
-// src/components/ReportsDashboard.tsx
-// Dynamic dark-themed dashboard for all reports
-
+// src/pages/ReportsPage.tsx
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -14,12 +11,22 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import type { DateRange } from "react-day-picker";
+import {
   CalendarDays,
   LineChart as LineIcon,
   BarChart3,
   PieChart as PieIcon,
-  Map as MapIcon, // ✅ rename to avoid shadowing global Map
+  Map as MapIcon,
   RefreshCw,
+  Download as DownloadIcon,
+  Filter as FilterIcon,
+  CalendarRange,
 } from "lucide-react";
 import {
   ReportsAPI,
@@ -29,6 +36,8 @@ import {
   type CostingRow,
   type MovementSummaryRow,
   type Granularity,
+  saveBlob,
+  type FiltersPayload,
 } from "@/services/reportsService";
 import {
   ResponsiveContainer,
@@ -46,11 +55,15 @@ import {
   Cell,
 } from "recharts";
 import { format, parseISO } from "date-fns";
+import { cn } from "@/lib/utils";
 
-/* ------------------------------ utils ------------------------------ */
-const fmt = (iso?: string) => (iso ? format(parseISO(iso), "dd MMM") : "");
+/* ------------------- Utils ------------------- */
+const fmt = (iso?: string) => {
+  if (!iso) return "";
+  const d = typeof iso === "string" ? parseISO(iso) : new Date(iso);
+  return format(d, "dd MMM");
+};
 
-/** Simple 8-week calendar heatmap */
 function CalendarHeatmap({
   data,
 }: {
@@ -60,8 +73,6 @@ function CalendarHeatmap({
   const byDate = new Map<string, number>(
     data.map((d) => [d.date.slice(0, 10), d.value])
   );
-
-  // last 8 weeks ~ 56 days
   const today = new Date();
   const cells: { key: string; value: number }[] = [];
   for (let i = 55; i >= 0; i--) {
@@ -70,7 +81,6 @@ function CalendarHeatmap({
     const key = d.toISOString().slice(0, 10);
     cells.push({ key, value: byDate.get(key) || 0 });
   }
-
   return (
     <div className="grid grid-cols-8 gap-1">
       {cells.map((c) => {
@@ -85,7 +95,7 @@ function CalendarHeatmap({
         return (
           <div
             key={c.key}
-            className={`h-6 w-6 rounded-sm ${shades[intensity]} border border-border`}
+            className={cn("h-6 w-6 rounded-sm border", shades[intensity])}
             title={`${c.key}: ${c.value}`}
           />
         );
@@ -94,19 +104,49 @@ function CalendarHeatmap({
   );
 }
 
-/* ---------------------------- main component ---------------------------- */
-export default function ReportsDashboard() {
+/* ----- Select helpers ----- */
+const ALL = "__all__";
+const toSelectValue = (v: string) => (v && v.length ? v : ALL);
+const fromSelectValue = (v: string) => (v === ALL ? "" : v);
+const PIE_COLORS = [
+  "#3b82f6",
+  "#22c55e",
+  "#f59e0b",
+  "#ef4444",
+  "#8b5cf6",
+  "#14b8a6",
+  "#e11d48",
+  "#0ea5e9",
+];
+
+/* ------------------- Component ------------------- */
+export default function ReportsPage() {
   // Filters
   const [granularity, setGranularity] = useState<Granularity>("day");
-  const [from, setFrom] = useState<string>(
-    new Date(new Date().setDate(new Date().getDate() - 30)).toISOString()
+  const today = new Date();
+  const thirtyAgo = new Date(today);
+  thirtyAgo.setDate(today.getDate() - 29);
+  const [range, setRange] = useState<DateRange | undefined>({
+    from: thirtyAgo,
+    to: today,
+  });
+  const fromDate = useMemo(
+    () => (range?.from ? format(range.from, "yyyy-MM-dd") : ""),
+    [range?.from]
   );
-  const [to, setTo] = useState<string>(new Date().toISOString());
+  const toDate = useMemo(
+    () => (range?.to ? format(range.to, "yyyy-MM-dd") : fromDate),
+    [range?.to, fromDate]
+  );
+
   const [branchId, setBranchId] = useState<string>("");
   const [dseId, setDseId] = useState<string>("");
   const [segment, setSegment] = useState<string>("");
   const [model, setModel] = useState<string>("");
   const [status, setStatus] = useState<string>("all");
+  const [source, setSource] = useState<string>("");
+
+  const [filters, setFilters] = useState<FiltersPayload | null>(null);
 
   // Data
   const [enquiries, setEnquiries] = useState<EnquiryRow[]>([]);
@@ -120,30 +160,53 @@ export default function ReportsDashboard() {
   const [loading, setLoading] = useState(false);
   const [loadingMovement, setLoadingMovement] = useState(false);
 
-  /* ------------------------------- Fetch ------------------------------- */
+  const fromISO = fromDate
+    ? new Date(fromDate + "T00:00:00.000Z").toISOString()
+    : undefined;
+  const toISO = toDate
+    ? new Date(toDate + "T23:59:59.999Z").toISOString()
+    : undefined;
+
+  /* ------------------- Fetch ------------------- */
+  const loadFilters = async () => {
+    try {
+      const data = await ReportsAPI.filters();
+      const cleaned: FiltersPayload = {
+        branches: (data.branches || []).filter((b) => !!b),
+        dses: (data.dses || []).filter((u) => !!u?.id),
+        segments: (data.segments || []).filter((s) => !!s),
+        models: (data.models || []).filter((m) => !!m),
+      };
+      setFilters(cleaned);
+    } catch {
+      setFilters({ branches: [], dses: [], segments: [], models: [] });
+    }
+  };
+
   const loadAll = async () => {
     setLoading(true);
     try {
       const [enq, conv, sal, cost] = await Promise.all([
         ReportsAPI.enquiries({
           granularity,
-          from,
-          to,
+          from: fromISO,
+          to: toISO,
           branchId: branchId || undefined,
           dseId: dseId || undefined,
           status,
+          source: source || undefined,
         }),
         ReportsAPI.conversions({
           granularity,
-          from,
-          to,
+          from: fromISO,
+          to: toISO,
           branchId: branchId || undefined,
           dseId: dseId || undefined,
         }),
         ReportsAPI.salesC3({
           granularity,
-          from,
-          to,
+          from: fromISO,
+          to: toISO,
           branchId: branchId || undefined,
           dseId: dseId || undefined,
           segment: segment || undefined,
@@ -151,8 +214,8 @@ export default function ReportsDashboard() {
         }),
         ReportsAPI.costing({
           granularity,
-          from,
-          to,
+          from: fromISO,
+          to: toISO,
           branchId: branchId || undefined,
         }),
       ]);
@@ -175,8 +238,8 @@ export default function ReportsDashboard() {
       const data = await ReportsAPI.movementSummary({
         userId: dseId,
         granularity,
-        from,
-        to,
+        from: fromISO,
+        to: toISO,
       });
       setMovementSummary(data);
     } finally {
@@ -185,16 +248,26 @@ export default function ReportsDashboard() {
   };
 
   useEffect(() => {
+    loadFilters();
+  }, []);
+  useEffect(() => {
     loadAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [granularity, from, to, branchId, dseId, segment, model, status]);
-
+  }, [
+    granularity,
+    fromDate,
+    toDate,
+    branchId,
+    dseId,
+    segment,
+    model,
+    status,
+    source,
+  ]);
   useEffect(() => {
     loadMovement();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dseId, granularity, from, to]);
+  }, [dseId, granularity, fromDate, toDate]);
 
-  /* ------------------------------ Derived ------------------------------ */
+  /* ------------------- Derived Data ------------------- */
   const enquirySeries = useMemo(() => {
     const m = new Map<string, number>();
     for (const r of enquiries) {
@@ -204,7 +277,24 @@ export default function ReportsDashboard() {
     return Array.from(m.entries()).map(([date, value]) => ({ date, value }));
   }, [enquiries]);
 
-  const conversionSeries = useMemo(
+  const enquiryStatusPie = useMemo(() => {
+    const by: Record<string, number> = {};
+    for (const r of enquiries) {
+      const k = r.status || "Unknown";
+      by[k] = (by[k] || 0) + (r.count || 0);
+    }
+    return Object.entries(by).map(([name, value]) => ({ name, value }));
+  }, [enquiries]);
+
+  const sourceOptions = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of enquiries) {
+      if (r.source) s.add(String(r.source));
+    }
+    return Array.from(s.values()).sort();
+  }, [enquiries]);
+
+  const conversionsLine = useMemo(
     () =>
       conversions.map((r) => ({
         time: r.timeBucket,
@@ -217,24 +307,31 @@ export default function ReportsDashboard() {
     [conversions]
   );
 
+  const latestConversionPie = useMemo(() => {
+    if (!conversions.length) return [] as { name: string; value: number }[];
+    const last = conversions[conversions.length - 1];
+    const by = last.byStage || {};
+    return ["C0", "C1", "C2", "C3"].map((k) => ({
+      name: k,
+      value: (by as any)[k] || 0,
+    }));
+  }, [conversions]);
+
   const salesSeries = useMemo(() => {
-    const key = (r: SalesRow) => `${r.timeBucket}|${r.segment ?? "All"}`;
-    const acc = new Map<
-      string,
-      { time: string; segment: string; units: number }
-    >();
+    return sales.map((r) => ({
+      time: r.timeBucket,
+      segment: r.segment || "All",
+      units: r.units,
+    }));
+  }, [sales]);
+
+  const salesBySegmentPie = useMemo(() => {
+    const by: Record<string, number> = {};
     for (const r of sales) {
-      const k = key(r);
-      const prev = acc.get(k);
-      if (prev) prev.units += r.units;
-      else
-        acc.set(k, {
-          time: r.timeBucket,
-          segment: r.segment || "All",
-          units: r.units,
-        });
+      const seg = r.segment || "All";
+      by[seg] = (by[seg] || 0) + (r.units || 0);
     }
-    return Array.from(acc.values());
+    return Object.entries(by).map(([name, value]) => ({ name, value }));
   }, [sales]);
 
   const costingSeries = useMemo(
@@ -242,8 +339,9 @@ export default function ReportsDashboard() {
       costing.map((r) => ({
         time: r.timeBucket,
         avgProfit: r.avgProfit,
-        netDealerCost: r.totalNetDealerCost,
-        quoted: r.totalQuoted,
+        totalProfit: r.totalProfit,
+        totalExShowroom: r.totalExShowroom,
+        vehicles: r.vehicles,
       })),
     [costing]
   );
@@ -257,156 +355,323 @@ export default function ReportsDashboard() {
     [movementSummary]
   );
 
-  /* ------------------------------ Render ------------------------------- */
+  /* ------------------- Downloads ------------------- */
+  const downloadCSV = async (
+    kind: "enq" | "conv" | "sales" | "cost" | "move" | "all"
+  ) => {
+    const common = {
+      granularity,
+      from: fromISO,
+      to: toISO,
+      branchId: branchId || undefined,
+    };
+    const name = (base: string) =>
+      `${base}_${fromDate}_${toDate}_${granularity}.csv`.replace(/\s+/g, "_");
+
+    if (kind === "all") {
+      await downloadCSV("enq");
+      await downloadCSV("conv");
+      await downloadCSV("sales");
+      await downloadCSV("cost");
+      if (dseId) await downloadCSV("move");
+      return;
+    }
+
+    if (kind === "enq") {
+      const blob = await ReportsAPI.enquiriesCSV({
+        ...common,
+        dseId: dseId || undefined,
+        status,
+        source: source || undefined,
+      });
+      return saveBlob(blob, name("enquiries"));
+    }
+    if (kind === "conv") {
+      const blob = await ReportsAPI.conversionsCSV({
+        ...common,
+        dseId: dseId || undefined,
+      });
+      return saveBlob(blob, name("conversions"));
+    }
+    if (kind === "sales") {
+      const blob = await ReportsAPI.salesC3CSV({
+        ...common,
+        dseId: dseId || undefined,
+        segment: segment || undefined,
+        model: model || undefined,
+      });
+      return saveBlob(blob, name("sales_c3"));
+    }
+    if (kind === "cost") {
+      const blob = await ReportsAPI.costingCSV(common);
+      return saveBlob(blob, name("internal_costing"));
+    }
+    if (kind === "move") {
+      if (!dseId) return;
+      const blob = await ReportsAPI.movementSummaryCSV({
+        userId: dseId,
+        granularity,
+        from: fromISO,
+        to: toISO,
+      });
+      return saveBlob(blob, name("dse_movement"));
+    }
+  };
+
+  const clearAll = () => {
+    setBranchId("");
+    setDseId("");
+    setSegment("");
+    setModel("");
+    setStatus("all");
+    setSource("");
+  };
+
+  /* ------------------- UI ------------------- */
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Reports & Analytics
-        </h1>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={loadAll}
-            disabled={loading}
-          >
-            <RefreshCw className="h-4 w-4 mr-1" />
-            Refresh
-          </Button>
+      {/* 🔹 Filters bar */}
+      <div className="sticky top-0 z-20 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
+        <div className="max-w-full mx-auto px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+              <FilterIcon className="h-4 w-4" />
+              <span>Report Filters</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => downloadCSV("all")}
+              >
+                <DownloadIcon className="h-4 w-4 mr-2" /> Export all CSV
+              </Button>
+              <Button variant="outline" size="sm" onClick={clearAll}>
+                Reset
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={loadAll}
+                disabled={loading}
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                {loading ? "Refreshing…" : "Refresh"}
+              </Button>
+            </div>
+          </div>
+
+          {/* Filters grid */}
+          <div className="grid gap-3 md:grid-cols-12">
+            {/* Granularity */}
+            <div>
+              <Label className="text-xs">Granularity</Label>
+              <Select
+                value={granularity}
+                onValueChange={(v) => setGranularity(v as Granularity)}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Day" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="day">Day</SelectItem>
+                  <SelectItem value="week">Week</SelectItem>
+                  <SelectItem value="month">Month</SelectItem>
+                  <SelectItem value="year">Year</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Date Range */}
+            <div className="md:col-span-3">
+              <Label className="text-xs">Date Range</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start h-9 font-normal"
+                  >
+                    <CalendarRange className="mr-2 h-4 w-4" />
+                    {fromDate && toDate ? (
+                      <span>
+                        {format(parseISO(fromDate), "dd MMM yyyy")} –{" "}
+                        {format(parseISO(toDate), "dd MMM yyyy")}
+                      </span>
+                    ) : (
+                      <span>Select dates</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-2" align="start">
+                  <Calendar
+                    mode="range"
+                    numberOfMonths={2}
+                    selected={range}
+                    onSelect={setRange}
+                    defaultMonth={range?.from}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {/* Branch */}
+            <div className="md:col-span-2">
+              <Label className="text-xs">Branch</Label>
+              <Select
+                value={toSelectValue(branchId)}
+                onValueChange={(v) => setBranchId(fromSelectValue(v))}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="All branches" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>All</SelectItem>
+                  {(filters?.branches || []).map((b) => (
+                    <SelectItem key={b} value={b}>
+                      {b}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* DSE */}
+            <div className="md:col-span-2">
+              <Label className="text-xs">DSE</Label>
+              <Select
+                value={toSelectValue(dseId)}
+                onValueChange={(v) => setDseId(fromSelectValue(v))}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="All DSEs" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>All</SelectItem>
+                  {(filters?.dses || []).map((u) => (
+                    <SelectItem key={String(u.id)} value={String(u.id)}>
+                      {u.name || String(u.id)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Segment */}
+            <div>
+              <Label className="text-xs">Segment (Sales)</Label>
+              <Select
+                value={toSelectValue(segment)}
+                onValueChange={(v) => setSegment(fromSelectValue(v))}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="All segments" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>All</SelectItem>
+                  {(filters?.segments || []).map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Model */}
+            <div>
+              <Label className="text-xs">Model (Sales)</Label>
+              <Select
+                value={toSelectValue(model)}
+                onValueChange={(v) => setModel(fromSelectValue(v))}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="All models" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>All</SelectItem>
+                  {(filters?.models || []).map((m) => (
+                    <SelectItem key={m} value={m}>
+                      {m}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Status */}
+            <div>
+              <Label className="text-xs">Status (Enquiries)</Label>
+              <Select value={status} onValueChange={setStatus}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="all" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="C0">C0</SelectItem>
+                  <SelectItem value="C1">C1</SelectItem>
+                  <SelectItem value="C2">C2</SelectItem>
+                  <SelectItem value="C3">C3</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Source */}
+            <div>
+              <Label className="text-xs">Source (Enquiries)</Label>
+              <Select
+                value={toSelectValue(source)}
+                onValueChange={(v) => setSource(fromSelectValue(v))}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="All sources" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>All</SelectItem>
+                  {sourceOptions.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Filters */}
-      <Card className="bg-card/60 backdrop-blur">
-        <CardContent className="pt-6 grid gap-4 md:grid-cols-6">
-          <div>
-            <Label>Granularity</Label>
-            <Select
-              value={granularity}
-              onValueChange={(v) => setGranularity(v as Granularity)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Day" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="day">Day</SelectItem>
-                <SelectItem value="week">Week</SelectItem>
-                <SelectItem value="month">Month</SelectItem>
-                <SelectItem value="year">Year</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label>From (ISO)</Label>
-            <Input
-              value={from}
-              onChange={(e) => setFrom(e.target.value)}
-              placeholder="YYYY-MM-DDTHH:mm:ss.sssZ"
-            />
-          </div>
-          <div>
-            <Label>To (ISO)</Label>
-            <Input
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-              placeholder="YYYY-MM-DDTHH:mm:ss.sssZ"
-            />
-          </div>
-
-          <div>
-            <Label>Branch</Label>
-            <Input
-              value={branchId}
-              onChange={(e) => setBranchId(e.target.value)}
-              placeholder="branch id (optional)"
-            />
-          </div>
-
-          <div>
-            <Label>DSE</Label>
-            <Input
-              value={dseId}
-              onChange={(e) => setDseId(e.target.value)}
-              placeholder="user id (optional)"
-            />
-          </div>
-
-          <div>
-            <Label>Status (Enquiries)</Label>
-            <Select value={status} onValueChange={(v) => setStatus(v)}>
-              <SelectTrigger>
-                <SelectValue placeholder="all" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="C0">C0</SelectItem>
-                <SelectItem value="C1">C1</SelectItem>
-                <SelectItem value="C2">C2</SelectItem>
-                <SelectItem value="C3">C3</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label>Segment (Sales)</Label>
-            <Input
-              value={segment}
-              onChange={(e) => setSegment(e.target.value)}
-              placeholder="e.g. SCV Cargo"
-            />
-          </div>
-          <div>
-            <Label>Model (Sales)</Label>
-            <Input
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              placeholder="e.g. Tata Intra V70"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* KPI Row */}
+      {/* 🔹 KPI Row */}
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
+          <CardHeader>
+            <CardTitle className="text-sm flex items-center gap-2">
               <CalendarDays className="h-4 w-4" />
-              Enquiries (last 8 wks)
+              Enquiries (8wks)
             </CardTitle>
           </CardHeader>
           <CardContent>
             <CalendarHeatmap data={enquirySeries} />
           </CardContent>
         </Card>
-
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
+          <CardHeader>
+            <CardTitle className="text-sm flex items-center gap-2">
               <LineIcon className="h-4 w-4" />
-              Avg Profit (Costing)
+              Avg Profit
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-semibold">
               ₹
               {(
-                costing.reduce((a, c) => a + c.avgProfit, 0) /
+                costing.reduce((a, c) => a + (c.avgProfit || 0), 0) /
                 Math.max(1, costing.length)
               ).toFixed(0)}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Average across selected window
-            </p>
           </CardContent>
         </Card>
-
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
+          <CardHeader>
+            <CardTitle className="text-sm flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
               Total C3 Units
             </CardTitle>
@@ -415,17 +680,13 @@ export default function ReportsDashboard() {
             <div className="text-3xl font-semibold">
               {sales.reduce((a, c) => a + (c.units || 0), 0)}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              All segments/models in view
-            </p>
           </CardContent>
         </Card>
-
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
+          <CardHeader>
+            <CardTitle className="text-sm flex items-center gap-2">
               <PieIcon className="h-4 w-4" />
-              Avg Conv % (C0→C3)
+              Avg Conv %
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -436,158 +697,224 @@ export default function ReportsDashboard() {
               ).toFixed(1)}
               %
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Across buckets</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Charts Row 1: Conversions */}
+      {/* 🔹 Enquiries */}
       <Card>
-        <CardHeader>
-          <CardTitle>Lead Funnel by Stage & Conversion</CardTitle>
+        <CardHeader className="flex justify-between">
+          <CardTitle>Enquiries</CardTitle>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => downloadCSV("enq")}
+          >
+            <DownloadIcon className="h-4 w-4 mr-2" />
+            CSV
+          </Button>
         </CardHeader>
-        <CardContent className="h-[320px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={conversionSeries}
-              margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="time" tickFormatter={fmt} />
-              <YAxis yAxisId="left" />
-              <YAxis yAxisId="right" orientation="right" />
-              <Tooltip labelFormatter={(v) => fmt(String(v))} />
-              <Legend />
-              <Line yAxisId="left" type="monotone" dataKey="C0" dot={false} />
-              <Line yAxisId="left" type="monotone" dataKey="C1" dot={false} />
-              <Line yAxisId="left" type="monotone" dataKey="C2" dot={false} />
-              <Line yAxisId="left" type="monotone" dataKey="C3" dot={false} />
-              <Line
-                yAxisId="right"
-                type="monotone"
-                dataKey="Conv"
-                strokeDasharray="4 4"
-                dot={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+        <CardContent className="grid md:grid-cols-3 gap-4">
+          <div className="md:col-span-2 h-[320px]">
+            <ResponsiveContainer>
+              <BarChart data={enquirySeries}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" tickFormatter={fmt} />
+                <YAxis />
+                <Tooltip />
+                <Bar dataKey="value" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="h-[320px]">
+            <ResponsiveContainer>
+              <PieChart>
+                <Pie
+                  data={enquiryStatusPie}
+                  dataKey="value"
+                  nameKey="name"
+                  outerRadius={90}
+                >
+                  {enquiryStatusPie.map((_, i) => (
+                    <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                  ))}
+                </Pie>
+                <Legend />
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
         </CardContent>
       </Card>
 
-      {/* Charts Row 2: Sales & Costing */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Sales (C3 Units) by Segment</CardTitle>
-          </CardHeader>
-          <CardContent className="h-[320px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={salesSeries}
-                margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
-              >
+      {/* 🔹 Conversions */}
+      <Card>
+        <CardHeader className="flex justify-between">
+          <CardTitle>Lead Funnel</CardTitle>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => downloadCSV("conv")}
+          >
+            <DownloadIcon className="h-4 w-4 mr-2" />
+            CSV
+          </Button>
+        </CardHeader>
+        <CardContent className="grid md:grid-cols-3 gap-4">
+          <div className="md:col-span-2 h-[320px]">
+            <ResponsiveContainer>
+              <LineChart data={conversionsLine}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="time" tickFormatter={fmt} />
                 <YAxis />
-                <Tooltip labelFormatter={(v) => fmt(String(v))} />
+                <Tooltip />
+                <Legend />
+                <Line type="monotone" dataKey="C0" />
+                <Line type="monotone" dataKey="C1" />
+                <Line type="monotone" dataKey="C2" />
+                <Line type="monotone" dataKey="C3" />
+                <Line type="monotone" dataKey="Conv" strokeDasharray="4 4" />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="h-[320px]">
+            <ResponsiveContainer>
+              <PieChart>
+                <Pie
+                  data={latestConversionPie}
+                  dataKey="value"
+                  nameKey="name"
+                  outerRadius={90}
+                >
+                  {latestConversionPie.map((_, i) => (
+                    <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                  ))}
+                </Pie>
+                <Legend />
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 🔹 Sales */}
+      <Card>
+        <CardHeader className="flex justify-between">
+          <CardTitle>Sales (C3 Units)</CardTitle>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => downloadCSV("sales")}
+          >
+            <DownloadIcon className="h-4 w-4 mr-2" />
+            CSV
+          </Button>
+        </CardHeader>
+        <CardContent className="grid md:grid-cols-3 gap-4">
+          <div className="md:col-span-2 h-[320px]">
+            <ResponsiveContainer>
+              <BarChart data={salesSeries}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="time" tickFormatter={fmt} />
+                <YAxis />
+                <Tooltip />
                 <Legend />
                 <Bar dataKey="units" />
               </BarChart>
             </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Internal Costing (Avg Profit & Totals)</CardTitle>
-          </CardHeader>
-          <CardContent className="h-[320px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart
-                data={costingSeries}
-                margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="time" tickFormatter={fmt} />
-                <YAxis />
-                <Tooltip labelFormatter={(v) => fmt(String(v))} />
+          </div>
+          <div className="h-[320px]">
+            <ResponsiveContainer>
+              <PieChart>
+                <Pie
+                  data={salesBySegmentPie}
+                  dataKey="value"
+                  nameKey="name"
+                  outerRadius={90}
+                >
+                  {salesBySegmentPie.map((_, i) => (
+                    <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                  ))}
+                </Pie>
                 <Legend />
-                <Line type="monotone" dataKey="avgProfit" dot={false} />
-                <Line type="monotone" dataKey="quoted" dot={false} />
-                <Line type="monotone" dataKey="netDealerCost" dot={false} />
-              </LineChart>
+                <Tooltip />
+              </PieChart>
             </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </CardContent>
+      </Card>
 
-      {/* Pie: Source mix (if present in enquiries) */}
+      {/* 🔹 Costing */}
       <Card>
-        <CardHeader>
-          <CardTitle>Enquiry Source Mix</CardTitle>
+        <CardHeader className="flex justify-between">
+          <CardTitle>Internal Costing</CardTitle>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => downloadCSV("cost")}
+          >
+            <DownloadIcon className="h-4 w-4 mr-2" />
+            CSV
+          </Button>
         </CardHeader>
-        <CardContent className="h-[280px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              {(() => {
-                const bySrc = new Map<string, number>();
-                for (const r of enquiries) {
-                  const key = r.source || "unknown";
-                  bySrc.set(key, (bySrc.get(key) || 0) + r.count);
-                }
-                const rows = Array.from(bySrc.entries()).map(
-                  ([name, value]) => ({
-                    name,
-                    value,
-                  })
-                );
-                return (
-                  <Pie dataKey="value" data={rows} label outerRadius={100}>
-                    {rows.map((_, idx) => (
-                      <Cell key={idx} />
-                    ))}
-                  </Pie>
-                );
-              })()}
+        <CardContent className="h-[320px]">
+          <ResponsiveContainer>
+            <LineChart data={costingSeries}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="time" tickFormatter={fmt} />
+              <YAxis />
               <Tooltip />
               <Legend />
-            </PieChart>
+              <Line type="monotone" dataKey="avgProfit" />
+              <Line type="monotone" dataKey="totalProfit" />
+            </LineChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
 
-      {/* DSE Movement summary */}
+      {/* 🔹 Movement */}
       <Card>
-        <CardHeader className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <MapIcon className="h-5 w-5" />
-            DSE Movement (pings / {granularity})
+        <CardHeader className="flex justify-between">
+          <CardTitle className="flex gap-2">
+            <MapIcon className="h-4 w-4" />
+            DSE Movement
           </CardTitle>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={loadMovement}
-            disabled={!dseId || loadingMovement}
-          >
-            <RefreshCw className="h-4 w-4 mr-1" />
-            {loadingMovement ? "Loading…" : "Refresh Movement"}
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!dseId}
+              onClick={() => downloadCSV("move")}
+            >
+              <DownloadIcon className="h-4 w-4 mr-2" />
+              CSV
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={loadMovement}
+              disabled={!dseId || loadingMovement}
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              {loadingMovement ? "Loading…" : "Refresh"}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="h-[280px]">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer>
             <LineChart data={movementSeries}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="time" tickFormatter={fmt} />
               <YAxis />
-              <Tooltip labelFormatter={(v) => fmt(String(v))} />
+              <Tooltip />
               <Legend />
-              <Line type="monotone" dataKey="pings" dot={false} />
+              <Line type="monotone" dataKey="pings" />
             </LineChart>
           </ResponsiveContainer>
           {!dseId && (
             <div className="text-xs text-muted-foreground mt-2">
-              Enter a DSE (User ID) above to load movement summary. Use the
-              GeoJSON endpoint to render the route on your map.
+              Select a DSE above to view movement
             </div>
           )}
         </CardContent>

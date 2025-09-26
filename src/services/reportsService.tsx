@@ -1,15 +1,13 @@
 // src/services/reportsService.ts
-// Client services for all Reports APIs
-
 import axiosInstance from "@/api/axiosInstance";
 
 const API_URL = import.meta.env.VITE_API_URL as string;
 
-/* ------------------------------ Types ------------------------------ */
 export type Granularity = "day" | "week" | "month" | "year";
 
+/* ---------------------- Response row types ---------------------- */
 export type EnquiryRow = {
-  timeBucket: string; // ISO
+  timeBucket: string; // ISO string bucket
   branch?: string | null;
   dseId?: string | null;
   status?: "C0" | "C1" | "C2" | "C3";
@@ -40,10 +38,6 @@ export type CostingRow = {
   branch?: string | null;
   vehicles: number;
   totalExShowroom: number;
-  totalAdders: number;
-  totalEarnings: number;
-  totalNetDealerCost: number;
-  totalQuoted: number;
   totalProfit: number;
   avgProfit: number;
 };
@@ -53,12 +47,19 @@ export type MovementPolyline = {
   points: [number, number][];
   count: number;
 };
+
 export type MovementSummaryRow = { timeBucket: string; pings: number };
 
-// Keep GeoJSON loose to avoid requiring @types/geojson in your app
 export type ReportsGeoJSON = { type: "FeatureCollection"; features: any[] };
 
-/* ------------------------------ Helpers ------------------------------ */
+export type FiltersPayload = {
+  branches: string[];
+  dses: { id: string; name: string }[];
+  segments: string[];
+  models: string[];
+};
+
+/* ---------------------- Helpers ---------------------- */
 const authHeader = () => {
   const token = localStorage.getItem("admin_token");
   return token ? { Authorization: `Bearer ${token}` } : {};
@@ -68,21 +69,25 @@ const get = async <T,>(url: string, params?: Record<string, any>) => {
   const res = await axiosInstance.get<T>(`${API_URL}${url}`, {
     params,
     headers: authHeader(),
+    responseType: "json",
   });
   // @ts-ignore
   return (res.data?.data ?? res.data) as T;
 };
 
-const post = async <T,>(url: string, body?: any) => {
-  const res = await axiosInstance.post<T>(`${API_URL}${url}`, body, {
+const getCSV = async (url: string, params?: Record<string, any>) => {
+  const res = await axiosInstance.get(`${API_URL}${url}`, {
+    params: { ...(params || {}), format: "csv" },
     headers: authHeader(),
+    responseType: "blob",
   });
-  // @ts-ignore
-  return (res.data?.data ?? res.data) as T;
+  return res.data as Blob;
 };
 
-/* ------------------------------ Services ------------------------------ */
+/* ---------------------- API wrapper ---------------------- */
 export const ReportsAPI = {
+  filters: () => get<FiltersPayload>(`/reports/filters`),
+
   enquiries: (params: {
     granularity?: Granularity;
     from?: string;
@@ -92,6 +97,7 @@ export const ReportsAPI = {
     status?: string;
     source?: string;
   }) => get<EnquiryRow[]>(`/reports/enquiries`, params),
+  enquiriesCSV: (params: any) => getCSV(`/reports/enquiries`, params),
 
   conversions: (params: {
     granularity?: Granularity;
@@ -100,6 +106,7 @@ export const ReportsAPI = {
     branchId?: string;
     dseId?: string;
   }) => get<ConversionRow[]>(`/reports/conversions`, params),
+  conversionsCSV: (params: any) => getCSV(`/reports/conversions`, params),
 
   salesC3: (params: {
     granularity?: Granularity;
@@ -110,6 +117,7 @@ export const ReportsAPI = {
     segment?: string;
     model?: string;
   }) => get<SalesRow[]>(`/reports/sales-c3`, params),
+  salesC3CSV: (params: any) => getCSV(`/reports/sales-c3`, params),
 
   costing: (params: {
     granularity?: Granularity;
@@ -117,6 +125,7 @@ export const ReportsAPI = {
     to?: string;
     branchId?: string;
   }) => get<CostingRow[]>(`/reports/internal-costing`, params),
+  costingCSV: (params: any) => getCSV(`/reports/internal-costing`, params),
 
   movementPolyline: (params: {
     userId: string;
@@ -124,22 +133,22 @@ export const ReportsAPI = {
     from?: string;
     to?: string;
   }) => get<MovementPolyline>(`/reports/dse/movement/polyline`, params),
-
   movementGeoJSON: (params: {
     userId: string;
     date?: string;
     from?: string;
     to?: string;
   }) => get<ReportsGeoJSON>(`/reports/dse/movement/geojson`, params),
-
   movementSummary: (params: {
     userId: string;
     granularity?: Granularity;
     from?: string;
     to?: string;
   }) => get<MovementSummaryRow[]>(`/reports/dse/movement/summary`, params),
+  movementSummaryCSV: (params: any) =>
+    getCSV(`/reports/dse/movement/summary`, params),
 
-  // Ingest ping from device
+  // DSE ping ingestion
   postPing: (body: {
     userId: string;
     lat: number;
@@ -147,5 +156,20 @@ export const ReportsAPI = {
     speed?: number;
     accuracy?: number;
     deviceId?: string;
-  }) => post(`/reports/dse/ping`, body),
+  }) =>
+    axiosInstance.post(`${API_URL}/reports/dse/ping`, body, {
+      headers: authHeader(),
+    }),
+};
+
+/* ---------------------- Blob Save Utility ---------------------- */
+export const saveBlob = (blob: Blob, filename: string) => {
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
 };
