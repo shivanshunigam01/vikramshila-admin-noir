@@ -54,7 +54,14 @@ import {
   Pie,
   Cell,
 } from "recharts";
-import { format, parseISO } from "date-fns";
+import {
+  format,
+  parseISO,
+  startOfISOWeek,
+  endOfISOWeek,
+  lastDayOfMonth,
+  getISOWeek,
+} from "date-fns";
 import { cn } from "@/lib/utils";
 
 /* ------------------- Utils ------------------- */
@@ -119,6 +126,37 @@ const PIE_COLORS = [
   "#0ea5e9",
 ];
 
+/* ----- Date helpers for week/month/year pickers ----- */
+const currentYear = new Date().getFullYear();
+const YEARS = Array.from({ length: 12 }, (_, i) => String(currentYear - i)); // last 12 years
+const WEEKS = Array.from({ length: 53 }, (_, i) => String(i + 1)); // ISO weeks 1..53
+const MONTHS = Array.from({ length: 12 }, (_, i) => ({
+  idx: i, // 0..11
+  label: format(new Date(2024, i, 1), "MMM"), // static year just for label
+}));
+
+function setYearRange(y: number): DateRange {
+  const from = new Date(y, 0, 1);
+  const to = new Date(y, 11, 31);
+  return { from, to };
+}
+function setMonthRange(y: number, m0: number): DateRange {
+  const from = new Date(y, m0, 1);
+  const to = lastDayOfMonth(from);
+  return { from, to };
+}
+function setISOWeekRange(y: number, w: number): DateRange {
+  // ISO week 1 is the week with Jan 4th. Use Jan 4th as anchor, then add (w-1) weeks.
+  const jan4 = new Date(y, 0, 4);
+  const start = startOfISOWeek(jan4);
+  const startOfTarget = new Date(start);
+  startOfTarget.setDate(start.getDate() + (w - 1) * 7);
+  return {
+    from: startOfISOWeek(startOfTarget),
+    to: endOfISOWeek(startOfTarget),
+  };
+}
+
 /* ------------------- Component ------------------- */
 export default function ReportsPage() {
   // Filters
@@ -130,6 +168,7 @@ export default function ReportsPage() {
     from: thirtyAgo,
     to: today,
   });
+
   const fromDate = useMemo(
     () => (range?.from ? format(range.from, "yyyy-MM-dd") : ""),
     [range?.from]
@@ -317,13 +356,15 @@ export default function ReportsPage() {
     }));
   }, [conversions]);
 
-  const salesSeries = useMemo(() => {
-    return sales.map((r) => ({
-      time: r.timeBucket,
-      segment: r.segment || "All",
-      units: r.units,
-    }));
-  }, [sales]);
+  const salesSeries = useMemo(
+    () =>
+      sales.map((r) => ({
+        time: r.timeBucket,
+        segment: r.segment || "All",
+        units: r.units,
+      })),
+    [sales]
+  );
 
   const salesBySegmentPie = useMemo(() => {
     const by: Record<string, number> = {};
@@ -482,36 +523,174 @@ export default function ReportsPage() {
               </Select>
             </div>
 
-            {/* Date Range */}
+            {/* Date Range (granularity-aware) */}
             <div className="md:col-span-3">
               <Label className="text-xs">Date Range</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start h-9 font-normal"
+
+              {granularity === "year" ? (
+                // Year-only selector
+                <Select
+                  value={
+                    range?.from
+                      ? format(range.from, "yyyy")
+                      : String(currentYear)
+                  }
+                  onValueChange={(year) => {
+                    const y = parseInt(year, 10);
+                    setRange(setYearRange(y));
+                  }}
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Select year" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {YEARS.map((y) => (
+                      <SelectItem key={y} value={y}>
+                        {y}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : granularity === "month" ? (
+                // Month + Year selectors
+                <div className="flex gap-2">
+                  <Select
+                    value={
+                      range?.from
+                        ? format(range.from, "yyyy")
+                        : String(currentYear)
+                    }
+                    onValueChange={(year) => {
+                      const y = parseInt(year, 10);
+                      const m0 = range?.from
+                        ? range.from.getMonth()
+                        : new Date().getMonth();
+                      setRange(setMonthRange(y, m0));
+                    }}
                   >
-                    <CalendarRange className="mr-2 h-4 w-4" />
-                    {fromDate && toDate ? (
-                      <span>
-                        {format(parseISO(fromDate), "dd MMM yyyy")} –{" "}
-                        {format(parseISO(toDate), "dd MMM yyyy")}
-                      </span>
-                    ) : (
-                      <span>Select dates</span>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-2" align="start">
-                  <Calendar
-                    mode="range"
-                    numberOfMonths={2}
-                    selected={range}
-                    onSelect={setRange}
-                    defaultMonth={range?.from}
-                  />
-                </PopoverContent>
-              </Popover>
+                    <SelectTrigger className="h-9 w-28">
+                      <SelectValue placeholder="Year" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {YEARS.map((y) => (
+                        <SelectItem key={y} value={y}>
+                          {y}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Select
+                    value={
+                      range?.from
+                        ? String(range.from.getMonth())
+                        : String(new Date().getMonth())
+                    }
+                    onValueChange={(m) => {
+                      const m0 = parseInt(m, 10);
+                      const y = range?.from
+                        ? range.from.getFullYear()
+                        : currentYear;
+                      setRange(setMonthRange(y, m0));
+                    }}
+                  >
+                    <SelectTrigger className="h-9 w-28">
+                      <SelectValue placeholder="Month" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MONTHS.map(({ idx, label }) => (
+                        <SelectItem key={idx} value={String(idx)}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : granularity === "week" ? (
+                // ISO Week + Year selectors
+                <div className="flex gap-2">
+                  <Select
+                    value={
+                      range?.from
+                        ? format(range.from, "yyyy")
+                        : String(currentYear)
+                    }
+                    onValueChange={(year) => {
+                      const y = parseInt(year, 10);
+                      const w = range?.from
+                        ? getISOWeek(range.from)
+                        : getISOWeek(new Date());
+                      setRange(setISOWeekRange(y, w));
+                    }}
+                  >
+                    <SelectTrigger className="h-9 w-28">
+                      <SelectValue placeholder="Year" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {YEARS.map((y) => (
+                        <SelectItem key={y} value={y}>
+                          {y}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Select
+                    value={
+                      range?.from
+                        ? String(getISOWeek(range.from))
+                        : String(getISOWeek(new Date()))
+                    }
+                    onValueChange={(week) => {
+                      const w = parseInt(week, 10);
+                      const y = range?.from
+                        ? range.from.getFullYear()
+                        : currentYear;
+                      setRange(setISOWeekRange(y, w));
+                    }}
+                  >
+                    <SelectTrigger className="h-9 w-28">
+                      <SelectValue placeholder="Week" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {WEEKS.map((w) => (
+                        <SelectItem key={w} value={w}>
+                          Week {w.padStart(2, "0")}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                // Day: default range calendar
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start h-9 font-normal"
+                    >
+                      <CalendarRange className="mr-2 h-4 w-4" />
+                      {fromDate && toDate ? (
+                        <span>
+                          {format(parseISO(fromDate), "dd MMM yyyy")} –{" "}
+                          {format(parseISO(toDate), "dd MMM yyyy")}
+                        </span>
+                      ) : (
+                        <span>Select dates</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-2" align="start">
+                    <Calendar
+                      mode="range"
+                      numberOfMonths={2}
+                      selected={range}
+                      onSelect={setRange}
+                      defaultMonth={range?.from}
+                    />
+                  </PopoverContent>
+                </Popover>
+              )}
             </div>
 
             {/* Branch */}

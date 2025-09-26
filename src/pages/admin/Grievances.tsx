@@ -1,3 +1,4 @@
+// src/pages/Grievances.tsx
 import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,24 +16,45 @@ import {
 import { toast } from "@/hooks/use-toast";
 import {
   getGrievances,
+  inProgressGrievance,
   resolveGrievance,
   deleteGrievance,
 } from "@/services/grievance.service";
-import { CheckCircle, Trash2, MessageSquare } from "lucide-react";
+import { CheckCircle, Trash2, MessageSquare, Rocket } from "lucide-react";
+
+type Grievance = {
+  _id: string;
+  fullName: string;
+  email?: string;
+  mobileNumber?: string;
+  type?: string;
+  subject?: string;
+  message?: string;
+  whatsappConsent?: boolean;
+  consentCall?: boolean;
+  state?: string;
+  pincode?: string;
+  status: "pending" | "in-progress" | "resolved";
+  createdAt: string;
+};
 
 export default function Grievances() {
-  const [grievances, setGrievances] = useState<any[]>([]);
+  const [grievances, setGrievances] = useState<Grievance[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch grievances from API
+  /* ---------- Fetch ---------- */
   const fetchGrievances = async () => {
     setLoading(true);
     try {
       const res = await getGrievances();
+      // API returns { data: { data: [...] } } in your current pattern
       const list = Array.isArray(res.data?.data) ? res.data.data : [];
       setGrievances(list);
     } catch (error: any) {
-      toast({ title: "Error", description: error.message });
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to load grievances",
+      });
     } finally {
       setLoading(false);
     }
@@ -42,43 +64,71 @@ export default function Grievances() {
     fetchGrievances();
   }, []);
 
-  // Mark as resolved
+  /* ---------- Actions ---------- */
+  const handleInProgress = async (id: string) => {
+    try {
+      await inProgressGrievance(id);
+      setGrievances((prev) =>
+        prev.map((g) => (g._id === id ? { ...g, status: "in-progress" } : g))
+      );
+      toast({
+        title: "In progress",
+        description:
+          "Grievance marked as under execution (user notified by email).",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to update status",
+      });
+    }
+  };
+
   const handleResolve = async (id: string) => {
     try {
       await resolveGrievance(id);
       setGrievances((prev) =>
-        prev.map((g) =>
-          g._id === id ? { ...g, status: "resolved", contacted: true } : g
-        )
+        prev.map((g) => (g._id === id ? { ...g, status: "resolved" } : g))
       );
-      toast({ title: "Resolved", description: "Grievance marked as resolved" });
+      toast({
+        title: "Resolved",
+        description: "Grievance marked resolved (user notified by email).",
+      });
     } catch (error: any) {
-      toast({ title: "Error", description: error.message });
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to resolve grievance",
+      });
     }
   };
 
-  // Delete grievance
   const handleDelete = async (id: string, fullName: string) => {
     try {
       await deleteGrievance(id);
       setGrievances((prev) => prev.filter((g) => g._id !== id));
       toast({
         title: "Deleted",
-        description: `"${fullName}" grievance removed`,
+        description: `"${fullName}" grievance removed.`,
       });
     } catch (error: any) {
-      toast({ title: "Error", description: error.message });
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to delete grievance",
+      });
     }
   };
 
-  const getStatusColor = (status: string) => {
+  /* ---------- UI helpers ---------- */
+  const getStatusColor = (status: Grievance["status"]) => {
     switch (status) {
       case "pending":
-        return "bg-yellow-500/20 text-yellow-500 border-yellow-500/30";
+        return "bg-yellow-500/20 text-yellow-600 border-yellow-500/30";
+      case "in-progress":
+        return "bg-blue-500/20 text-blue-600 border-blue-500/30";
       case "resolved":
-        return "bg-green-500/20 text-green-500 border-green-500/30";
+        return "bg-green-500/20 text-green-600 border-green-500/30";
       default:
-        return "bg-gray-500/20 text-gray-500 border-gray-500/30";
+        return "bg-gray-500/20 text-gray-600 border-gray-500/30";
     }
   };
 
@@ -91,11 +141,11 @@ export default function Grievances() {
           Grievances
         </h1>
         <p className="text-muted-foreground">
-          Manage and follow up on customer grievances
+          Manage customer grievances through their full lifecycle.
         </p>
       </div>
 
-      {/* Grievances List */}
+      {/* List */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {loading ? (
           <p>Loading grievances...</p>
@@ -110,23 +160,33 @@ export default function Grievances() {
                   <Badge className={getStatusColor(g.status)}>{g.status}</Badge>
                 </div>
 
-                <p className="text-sm text-muted-foreground">
-                  📱 {g.mobileNumber}
-                </p>
-                <p className="text-sm">📧 {g.email}</p>
-                <p className="text-sm">
-                  📍 {g.state || "N/A"} - {g.pincode || "N/A"}
-                </p>
+                {g.mobileNumber ? (
+                  <p className="text-sm text-muted-foreground">
+                    📱 {g.mobileNumber}
+                  </p>
+                ) : null}
+                {g.email ? <p className="text-sm">📧 {g.email}</p> : null}
+                {(g.state || g.pincode) && (
+                  <p className="text-sm">
+                    📍 {g.state || "N/A"} {g.pincode ? `- ${g.pincode}` : ""}
+                  </p>
+                )}
 
-                <div className="text-sm">
-                  <strong>Type:</strong> {g.type}
-                </div>
-                <div className="text-sm">
-                  <strong>Subject:</strong> {g.subject}
-                </div>
-                <div className="text-sm">
-                  <strong>Message:</strong> {g.message}
-                </div>
+                {g.type && (
+                  <div className="text-sm">
+                    <strong>Type:</strong> {g.type}
+                  </div>
+                )}
+                {g.subject && (
+                  <div className="text-sm">
+                    <strong>Subject:</strong> {g.subject}
+                  </div>
+                )}
+                {g.message && (
+                  <div className="text-sm">
+                    <strong>Message:</strong> {g.message}
+                  </div>
+                )}
                 <div className="text-sm">
                   <strong>WhatsApp Consent:</strong>{" "}
                   {g.whatsappConsent ? "✅ Yes" : "❌ No"}
@@ -137,7 +197,18 @@ export default function Grievances() {
 
                 {/* Actions */}
                 <div className="flex gap-2 mt-2">
-                  {g.status !== "resolved" && (
+                  {g.status === "pending" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleInProgress(g._id)}
+                      className="text-blue-600 border-blue-600"
+                    >
+                      <Rocket className="h-4 w-4 mr-1" /> Start Execution
+                    </Button>
+                  )}
+
+                  {g.status === "in-progress" && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -148,6 +219,7 @@ export default function Grievances() {
                     </Button>
                   )}
 
+                  {/* Always allow delete */}
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button

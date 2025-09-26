@@ -14,8 +14,8 @@ import {
   MessageCircleQuestion,
   BarChart3,
   MapPin,
-  Image, // ✅ needed for "Banner Images"
-  CalendarRange, // ✅ needed for "Attendance (Day)"
+  Image,
+  CalendarRange,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { useAutoLogout } from "@/hooks/useAutoLogout";
 
 /* ----------------------------- Types ----------------------------- */
 type IconType = React.ComponentType<React.SVGProps<SVGSVGElement>>;
@@ -45,7 +46,7 @@ export const BASE_NAV_ITEMS: NavItem[] = [
   { name: "Products", href: "/admin/products", icon: Package },
   { name: "Schemes & Offers", href: "/admin/schemes", icon: Gift },
   { name: "Testimonials", href: "/admin/testimonials", icon: Users },
-  { name: "Banner Images", href: "/admin/banner", icon: Image }, // ✅ fixed
+  { name: "Banner Images", href: "/admin/banner", icon: Image },
   { name: "Services", href: "/admin/services", icon: Settings },
   { name: "Enquiries", href: "/admin/enquiries", icon: Mail },
   { name: "Leads", href: "/admin/leads", icon: Users },
@@ -72,8 +73,6 @@ export const BASE_NAV_ITEMS: NavItem[] = [
 export const DSE_NAV_ITEMS: NavItem[] = [
   { name: "My Leads", href: "/admin/dse-leads", icon: Users },
   { name: "My Enquiries", href: "/admin/dse-enquiry", icon: Mail },
-  // (Optional)
-  // { name: "My Attendance", href: "/admin/dse-reports?tab=attendance&mine=1", icon: CalendarRange },
 ];
 
 type AdminUser = {
@@ -86,6 +85,23 @@ export default function AdminLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+
+  // ✅ Auto-logout after 30 minutes of inactivity (change to 60 * 60 * 1000 for 1 hour)
+  useAutoLogout({
+    timeoutMs: 30 * 60 * 1000,
+    crossTab: true,
+    onBeforeLogout: () => {
+      // Show a toast right before redirect/cleanup
+      try {
+        toast({
+          title: "Logged out",
+          description: "You have been logged out due to inactivity.",
+        });
+      } catch {
+        /* ignore if toast system not ready */
+      }
+    },
+  });
 
   const { isDSEUser, displayName, displayRole } = useMemo(() => {
     try {
@@ -207,13 +223,13 @@ export default function AdminLayout() {
               <nav className="px-4 space-y-2">
                 {navigationItems.map((item, idx) => {
                   if (item.type === "section") {
-                    // item is narrowed to the section type here
+                    const label = (item as { label: string }).label;
                     return (
                       <div
-                        key={`sec-${idx}-${item.label}`}
+                        key={`sec-${idx}-${label}`}
                         className="px-3 pt-4 pb-2 text-xs uppercase tracking-wider text-gray-500"
                       >
-                        {item.label}
+                        {label}
                       </div>
                     );
                   }
