@@ -27,6 +27,7 @@ import DSEMapAll from "./pages/DSEMapAll";
 import DSEReports from "./pages/DSEReports";
 import DSEReportsDse from "./pages/DSEReportsDse";
 import DSETrackDetail from "./pages/DSETrackDetail";
+import Videos from "./pages/Videos";
 
 const queryClient = new QueryClient();
 
@@ -47,6 +48,8 @@ const App = () => (
             <Route path="services" element={<Services />} />
             <Route path="enquiries" element={<Enquiries />} />
             <Route path="grievances" element={<Grievances />} />
+            <Route path="videos" element={<Videos />} />
+
 
             <Route path="leads" element={<Leads />} />
 

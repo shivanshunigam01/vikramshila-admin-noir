@@ -16,6 +16,7 @@ import {
   MapPin,
   Image,
   CalendarRange,
+  Video,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -47,6 +48,8 @@ export const BASE_NAV_ITEMS: NavItem[] = [
   { name: "Schemes & Offers", href: "/admin/schemes", icon: Gift },
   { name: "Testimonials", href: "/admin/testimonials", icon: Users },
   { name: "Banner Images", href: "/admin/banner", icon: Image },
+  { name: "Videos", href: "/admin/videos", icon: Video },
+  
   { name: "Services", href: "/admin/services", icon: Settings },
   { name: "Enquiries", href: "/admin/enquiries", icon: Mail },
   { name: "Leads", href: "/admin/leads", icon: Users },
