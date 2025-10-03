@@ -306,6 +306,7 @@ export default function DSETrackDetail() {
         </div>
 
         {/* Stats */}
+        {/* Stats */}
         <div className="flex flex-wrap gap-3">
           {mode === "day" && dayData && (
             <>
@@ -325,8 +326,23 @@ export default function DSETrackDetail() {
                   {dayData.stats?.pings ?? 0}
                 </div>
               </div>
+
+              {/* ✅ Start & End Address Cards */}
+              {dayData.startAddress && (
+                <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-4 text-gray-100 w-full">
+                  <div className="text-sm text-gray-400">Start Location</div>
+                  <div className="text-md">{dayData.startAddress.display}</div>
+                </div>
+              )}
+              {dayData.endAddress && (
+                <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-4 text-gray-100 w-full">
+                  <div className="text-sm text-gray-400">End Location</div>
+                  <div className="text-md">{dayData.endAddress.display}</div>
+                </div>
+              )}
             </>
           )}
+
           {mode === "range" && rangeData && (
             <>
               <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-4 text-gray-100">

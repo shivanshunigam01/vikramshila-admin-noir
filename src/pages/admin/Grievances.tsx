@@ -1,26 +1,45 @@
-// src/pages/Grievances.tsx
-import { useEffect, useState } from "react";
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Separator } from "@/components/ui/separator";
 import { toast } from "@/hooks/use-toast";
+
+// Icons
+import { MessageSquare, Trash2, Eye, PencilLine, Search } from "lucide-react";
+
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
+
 import {
   getGrievances,
-  inProgressGrievance,
-  resolveGrievance,
+  updateGrievance,
   deleteGrievance,
 } from "@/services/grievance.service";
-import { CheckCircle, Trash2, MessageSquare, Rocket } from "lucide-react";
+
+/* ---------- Types ---------- */
+type GrievanceUpdate = {
+  status: string;
+  message: string;
+  at: string;
+};
 
 type Grievance = {
   _id: string;
@@ -36,25 +55,51 @@ type Grievance = {
   pincode?: string;
   status: "pending" | "in-progress" | "resolved";
   createdAt: string;
+  grievanceUpdates?: GrievanceUpdate[];
 };
 
+/* ---------- Helpers ---------- */
+const getStatusColor = (status: Grievance["status"]) => {
+  switch (status) {
+    case "pending":
+      return "bg-yellow-500/20 text-yellow-600 border-yellow-600/20";
+    case "in-progress":
+      return "bg-blue-500/20 text-blue-600 border-blue-600/20";
+    case "resolved":
+      return "bg-green-500/20 text-green-600 border-green-600/20";
+    default:
+      return "bg-gray-500/20 text-gray-600 border-gray-500/20";
+  }
+};
+
+/* ---------- Component ---------- */
 export default function Grievances() {
   const [grievances, setGrievances] = useState<Grievance[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  // View sheet
+  const [viewOpen, setViewOpen] = useState(false);
+  const [viewItem, setViewItem] = useState<Grievance | null>(null);
+
+  // Update dialog
+  const [updateOpen, setUpdateOpen] = useState(false);
+  const [updateFor, setUpdateFor] = useState<Grievance | null>(null);
+  const [newStatus, setNewStatus] =
+    useState<Grievance["status"]>("in-progress");
+  const [message, setMessage] = useState("");
+  const [updating, setUpdating] = useState(false);
 
   /* ---------- Fetch ---------- */
   const fetchGrievances = async () => {
     setLoading(true);
     try {
       const res = await getGrievances();
-      // API returns { data: { data: [...] } } in your current pattern
       const list = Array.isArray(res.data?.data) ? res.data.data : [];
       setGrievances(list);
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error?.message || "Failed to load grievances",
-      });
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message });
     } finally {
       setLoading(false);
     }
@@ -64,197 +109,258 @@ export default function Grievances() {
     fetchGrievances();
   }, []);
 
+  /* ---------- Filters ---------- */
+  const filtered = useMemo(() => {
+    const q = searchTerm.toLowerCase();
+    return grievances.filter((g) => {
+      const matchesSearch =
+        g.fullName.toLowerCase().includes(q) ||
+        (g.email || "").toLowerCase().includes(q) ||
+        (g.mobileNumber || "").includes(q) ||
+        (g.subject || "").toLowerCase().includes(q) ||
+        (g.type || "").toLowerCase().includes(q) ||
+        (g.status || "").toLowerCase().includes(q);
+
+      const matchesStatus =
+        statusFilter === "all" || g.status === (statusFilter as any);
+      return matchesSearch && matchesStatus;
+    });
+  }, [grievances, searchTerm, statusFilter]);
+
   /* ---------- Actions ---------- */
-  const handleInProgress = async (id: string) => {
+  const confirmUpdate = async () => {
+    if (!updateFor) return;
+    setUpdating(true);
     try {
-      await inProgressGrievance(id);
+      const res = await updateGrievance(updateFor._id, {
+        status: newStatus,
+        message,
+      });
+      const updated = res.data?.data || res.data;
       setGrievances((prev) =>
-        prev.map((g) => (g._id === id ? { ...g, status: "in-progress" } : g))
+        prev.map((g) => (g._id === updated._id ? updated : g))
       );
-      toast({
-        title: "In progress",
-        description:
-          "Grievance marked as under execution (user notified by email).",
-      });
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error?.message || "Failed to update status",
-      });
+      toast({ title: "Updated", description: "Grievance updated." });
+      setUpdateOpen(false);
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message });
+    } finally {
+      setUpdating(false);
     }
   };
 
-  const handleResolve = async (id: string) => {
-    try {
-      await resolveGrievance(id);
-      setGrievances((prev) =>
-        prev.map((g) => (g._id === id ? { ...g, status: "resolved" } : g))
-      );
-      toast({
-        title: "Resolved",
-        description: "Grievance marked resolved (user notified by email).",
-      });
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error?.message || "Failed to resolve grievance",
-      });
-    }
-  };
-
-  const handleDelete = async (id: string, fullName: string) => {
+  const handleDelete = async (id: string) => {
     try {
       await deleteGrievance(id);
       setGrievances((prev) => prev.filter((g) => g._id !== id));
-      toast({
-        title: "Deleted",
-        description: `"${fullName}" grievance removed.`,
-      });
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error?.message || "Failed to delete grievance",
-      });
+      toast({ title: "Deleted", description: "Grievance removed." });
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message });
     }
   };
 
-  /* ---------- UI helpers ---------- */
-  const getStatusColor = (status: Grievance["status"]) => {
-    switch (status) {
-      case "pending":
-        return "bg-yellow-500/20 text-yellow-600 border-yellow-500/30";
-      case "in-progress":
-        return "bg-blue-500/20 text-blue-600 border-blue-500/30";
-      case "resolved":
-        return "bg-green-500/20 text-green-600 border-green-500/30";
-      default:
-        return "bg-gray-500/20 text-gray-600 border-gray-500/30";
-    }
-  };
-
+  /* ---------- UI ---------- */
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold flex items-center gap-3">
-          <MessageSquare className="h-8 w-8 text-primary" />
-          Grievances
-        </h1>
-        <p className="text-muted-foreground">
-          Manage customer grievances through their full lifecycle.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold flex items-center gap-3">
+            <MessageSquare className="h-8 w-8 text-primary" />
+            Grievances
+          </h1>
+          <p className="text-muted-foreground">
+            Manage customer grievances through their lifecycle.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search (name, phone, email, subject, status)…"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-3 py-2 rounded-md border bg-input text-sm"
+          >
+            <option value="all">All</option>
+            <option value="pending">Pending</option>
+            <option value="in-progress">In Progress</option>
+            <option value="resolved">Resolved</option>
+          </select>
+        </div>
       </div>
 
-      {/* List */}
+      {/* Grid */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {loading ? (
           <p>Loading grievances...</p>
-        ) : grievances.length === 0 ? (
-          <p>No grievances found.</p>
+        ) : filtered.length === 0 ? (
+          <p>No grievances found</p>
         ) : (
-          grievances.map((g) => (
-            <Card key={g._id} className="vikram-card">
-              <CardContent className="space-y-3 pt-4">
-                <div className="flex items-center justify-between">
+          filtered.map((g) => (
+            <Card
+              key={g._id}
+              className="overflow-hidden border-muted-foreground/10 hover:shadow-md transition-shadow"
+            >
+              <CardContent className="p-4 space-y-3">
+                <div className="flex justify-between items-center">
                   <h3 className="font-semibold">{g.fullName}</h3>
-                  <Badge className={getStatusColor(g.status)}>{g.status}</Badge>
+                  <Badge className={`border ${getStatusColor(g.status)}`}>
+                    {g.status}
+                  </Badge>
+                </div>
+                <p className="text-sm text-muted-foreground">{g.subject}</p>
+                <p className="text-xs">{g.message}</p>
+                <div className="text-xs text-muted-foreground">
+                  {new Date(g.createdAt).toLocaleDateString("en-IN")}
                 </div>
 
-                {g.mobileNumber ? (
-                  <p className="text-sm text-muted-foreground">
-                    📱 {g.mobileNumber}
-                  </p>
-                ) : null}
-                {g.email ? <p className="text-sm">📧 {g.email}</p> : null}
-                {(g.state || g.pincode) && (
-                  <p className="text-sm">
-                    📍 {g.state || "N/A"} {g.pincode ? `- ${g.pincode}` : ""}
-                  </p>
-                )}
-
-                {g.type && (
-                  <div className="text-sm">
-                    <strong>Type:</strong> {g.type}
-                  </div>
-                )}
-                {g.subject && (
-                  <div className="text-sm">
-                    <strong>Subject:</strong> {g.subject}
-                  </div>
-                )}
-                {g.message && (
-                  <div className="text-sm">
-                    <strong>Message:</strong> {g.message}
-                  </div>
-                )}
-                <div className="text-sm">
-                  <strong>WhatsApp Consent:</strong>{" "}
-                  {g.whatsappConsent ? "✅ Yes" : "❌ No"}
-                </div>
-                <div className="text-xs text-gray-400">
-                  Created: {new Date(g.createdAt).toLocaleString()}
-                </div>
-
-                {/* Actions */}
-                <div className="flex gap-2 mt-2">
-                  {g.status === "pending" && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleInProgress(g._id)}
-                      className="text-blue-600 border-blue-600"
-                    >
-                      <Rocket className="h-4 w-4 mr-1" /> Start Execution
-                    </Button>
-                  )}
-
-                  {g.status === "in-progress" && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleResolve(g._id)}
-                      className="text-green-600 border-green-600"
-                    >
-                      <CheckCircle className="h-4 w-4 mr-1" /> Resolve
-                    </Button>
-                  )}
-
-                  {/* Always allow delete */}
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-red-500"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent className="vikram-card">
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Delete Grievance</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Are you sure you want to delete grievance from "
-                          {g.fullName}"?
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <div className="flex justify-end gap-2 p-4">
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => handleDelete(g._id, g.fullName)}
-                          className="bg-red-600 hover:bg-red-700"
-                        >
-                          Delete
-                        </AlertDialogAction>
-                      </div>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                <div className="flex gap-2 pt-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setViewItem(g);
+                      setViewOpen(true);
+                    }}
+                  >
+                    <Eye className="h-4 w-4 mr-1" /> View
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setUpdateFor(g);
+                      setNewStatus(g.status);
+                      setMessage("");
+                      setUpdateOpen(true);
+                    }}
+                  >
+                    <PencilLine className="h-4 w-4 mr-1" /> Update
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="text-red-600"
+                    onClick={() => handleDelete(g._id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               </CardContent>
             </Card>
           ))
         )}
       </div>
+
+      {/* View Sheet */}
+      <Sheet open={viewOpen} onOpenChange={setViewOpen}>
+        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Grievance Details</SheetTitle>
+            <SheetDescription>Full grievance record</SheetDescription>
+          </SheetHeader>
+          {viewItem && (
+            <div className="mt-4 space-y-4 text-sm">
+              <div>
+                <p>
+                  <b>Name:</b> {viewItem.fullName}
+                </p>
+                <p>
+                  <b>Email:</b> {viewItem.email || "—"}
+                </p>
+                <p>
+                  <b>Phone:</b> {viewItem.mobileNumber || "—"}
+                </p>
+                <p>
+                  <b>Type:</b> {viewItem.type || "—"}
+                </p>
+                <p>
+                  <b>Subject:</b> {viewItem.subject || "—"}
+                </p>
+                <p>
+                  <b>Message:</b> {viewItem.message || "—"}
+                </p>
+              </div>
+
+              <Separator />
+
+              <h4 className="font-semibold">Update History</h4>
+              {Array.isArray(viewItem.grievanceUpdates) &&
+              viewItem.grievanceUpdates.length > 0 ? (
+                <div className="rounded-md border divide-y">
+                  {viewItem.grievanceUpdates
+                    .slice()
+                    .reverse()
+                    .map((u, i) => (
+                      <div
+                        key={i}
+                        className="p-3 flex items-start justify-between gap-3"
+                      >
+                        <div className="font-medium">{u.status}</div>
+                        <div className="flex-1 text-muted-foreground">
+                          {u.message}
+                        </div>
+                        <div className="text-xs">
+                          {new Date(u.at).toLocaleString("en-IN")}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">No updates yet</p>
+              )}
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+
+      {/* Update Dialog */}
+      {/* Update Dialog */}
+      <Dialog open={updateOpen} onOpenChange={setUpdateOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Update Grievance</DialogTitle>
+            <DialogDescription>
+              Change grievance status and add a note.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {/* Custom black select */}
+            <select
+              className="w-full p-2 rounded-md border border-gray-700 bg-black text-white focus:outline-none focus:ring-2 focus:ring-primary"
+              value={newStatus}
+              onChange={(e) => setNewStatus(e.target.value as any)}
+            >
+              <option value="pending">Pending</option>
+              <option value="in-progress">In Progress</option>
+              <option value="resolved">Resolved</option>
+            </select>
+
+            <Textarea
+              placeholder="Add a message…"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              className="bg-black text-white border-gray-700"
+            />
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setUpdateOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={confirmUpdate} disabled={updating}>
+                {updating ? "Saving…" : "Save"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

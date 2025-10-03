@@ -54,14 +54,7 @@ import {
   Pie,
   Cell,
 } from "recharts";
-import {
-  format,
-  parseISO,
-  startOfISOWeek,
-  endOfISOWeek,
-  lastDayOfMonth,
-  getISOWeek,
-} from "date-fns";
+import { format, parseISO, lastDayOfMonth } from "date-fns";
 import { cn } from "@/lib/utils";
 
 /* ------------------- Utils ------------------- */
@@ -126,10 +119,9 @@ const PIE_COLORS = [
   "#0ea5e9",
 ];
 
-/* ----- Date helpers for week/month/year pickers ----- */
+/* ----- Date helpers for month/year pickers (Week REMOVED) ----- */
 const currentYear = new Date().getFullYear();
 const YEARS = Array.from({ length: 12 }, (_, i) => String(currentYear - i)); // last 12 years
-const WEEKS = Array.from({ length: 53 }, (_, i) => String(i + 1)); // ISO weeks 1..53
 const MONTHS = Array.from({ length: 12 }, (_, i) => ({
   idx: i, // 0..11
   label: format(new Date(2024, i, 1), "MMM"), // static year just for label
@@ -145,17 +137,6 @@ function setMonthRange(y: number, m0: number): DateRange {
   const to = lastDayOfMonth(from);
   return { from, to };
 }
-function setISOWeekRange(y: number, w: number): DateRange {
-  // ISO week 1 is the week with Jan 4th. Use Jan 4th as anchor, then add (w-1) weeks.
-  const jan4 = new Date(y, 0, 4);
-  const start = startOfISOWeek(jan4);
-  const startOfTarget = new Date(start);
-  startOfTarget.setDate(start.getDate() + (w - 1) * 7);
-  return {
-    from: startOfISOWeek(startOfTarget),
-    to: endOfISOWeek(startOfTarget),
-  };
-}
 
 /* ------------------- Component ------------------- */
 export default function ReportsPage() {
@@ -168,6 +149,14 @@ export default function ReportsPage() {
     from: thirtyAgo,
     to: today,
   });
+
+  // If somehow "week" was persisted, coerce to "day"
+  useEffect(() => {
+    if (granularity === "week") {
+      setGranularity("day" as Granularity);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fromDate = useMemo(
     () => (range?.from ? format(range.from, "yyyy-MM-dd") : ""),
@@ -199,12 +188,22 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(false);
   const [loadingMovement, setLoadingMovement] = useState(false);
 
-  const fromISO = fromDate
-    ? new Date(fromDate + "T00:00:00.000Z").toISOString()
-    : undefined;
-  const toISO = toDate
-    ? new Date(toDate + "T23:59:59.999Z").toISOString()
-    : undefined;
+  /* ----- Robust local start/end-of-day → ISO (fix day-wise range) ----- */
+  const toLocalStartISO = (d?: string) => {
+    if (!d) return undefined;
+    const dt = new Date(d);
+    dt.setHours(0, 0, 0, 0);
+    return dt.toISOString();
+  };
+  const toLocalEndISO = (d?: string) => {
+    if (!d) return undefined;
+    const dt = new Date(d);
+    dt.setHours(23, 59, 59, 999);
+    return dt.toISOString();
+  };
+
+  const fromISO = toLocalStartISO(fromDate);
+  const toISO = toLocalEndISO(toDate);
 
   /* ------------------- Fetch ------------------- */
   const loadFilters = async () => {
@@ -301,10 +300,26 @@ export default function ReportsPage() {
     model,
     status,
     source,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   ]);
   useEffect(() => {
     loadMovement();
-  }, [dseId, granularity, fromDate, toDate]);
+  }, [dseId, granularity, fromDate, toDate]); // eslint-disable-line
+
+  /* When changing granularity to month/year, normalize the range to a clean month/year window */
+  useEffect(() => {
+    if (!range?.from) return;
+    if (granularity === "month") {
+      const y = range.from.getFullYear();
+      const m0 = range.from.getMonth();
+      setRange(setMonthRange(y, m0));
+    } else if (granularity === "year") {
+      const y = range.from.getFullYear();
+      setRange(setYearRange(y));
+    }
+    // For "day" we keep the explicit day-range as selected.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [granularity]);
 
   /* ------------------- Derived Data ------------------- */
   const enquirySeries = useMemo(() => {
@@ -406,8 +421,12 @@ export default function ReportsPage() {
       to: toISO,
       branchId: branchId || undefined,
     };
+    const safe = (s: string) => s || "NA";
     const name = (base: string) =>
-      `${base}_${fromDate}_${toDate}_${granularity}.csv`.replace(/\s+/g, "_");
+      `${base}_${safe(fromDate)}_${safe(toDate)}_${granularity}.csv`.replace(
+        /\s+/g,
+        "_"
+      );
 
     if (kind === "all") {
       await downloadCSV("enq");
@@ -516,14 +535,14 @@ export default function ReportsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="day">Day</SelectItem>
-                  <SelectItem value="week">Week</SelectItem>
+                  {/* Week removed */}
                   <SelectItem value="month">Month</SelectItem>
                   <SelectItem value="year">Year</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Date Range (granularity-aware) */}
+            {/* Date Range (granularity-aware; Week removed) */}
             <div className="md:col-span-3">
               <Label className="text-xs">Date Range</Label>
 
@@ -601,61 +620,6 @@ export default function ReportsPage() {
                       {MONTHS.map(({ idx, label }) => (
                         <SelectItem key={idx} value={String(idx)}>
                           {label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ) : granularity === "week" ? (
-                // ISO Week + Year selectors
-                <div className="flex gap-2">
-                  <Select
-                    value={
-                      range?.from
-                        ? format(range.from, "yyyy")
-                        : String(currentYear)
-                    }
-                    onValueChange={(year) => {
-                      const y = parseInt(year, 10);
-                      const w = range?.from
-                        ? getISOWeek(range.from)
-                        : getISOWeek(new Date());
-                      setRange(setISOWeekRange(y, w));
-                    }}
-                  >
-                    <SelectTrigger className="h-9 w-28">
-                      <SelectValue placeholder="Year" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {YEARS.map((y) => (
-                        <SelectItem key={y} value={y}>
-                          {y}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  <Select
-                    value={
-                      range?.from
-                        ? String(getISOWeek(range.from))
-                        : String(getISOWeek(new Date()))
-                    }
-                    onValueChange={(week) => {
-                      const w = parseInt(week, 10);
-                      const y = range?.from
-                        ? range.from.getFullYear()
-                        : currentYear;
-                      setRange(setISOWeekRange(y, w));
-                    }}
-                  >
-                    <SelectTrigger className="h-9 w-28">
-                      <SelectValue placeholder="Week" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {WEEKS.map((w) => (
-                        <SelectItem key={w} value={w}>
-                          Week {w.padStart(2, "0")}
                         </SelectItem>
                       ))}
                     </SelectContent>
