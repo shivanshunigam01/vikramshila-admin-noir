@@ -68,7 +68,6 @@ function FitToBounds({ bounds }: { bounds: L.LatLngBoundsExpression | null }) {
   const map = useMap();
   useEffect(() => {
     if (!bounds) return;
-    // tiny timeout to allow map mount
     setTimeout(() => map.fitBounds(bounds, { padding: [30, 30] }), 50);
   }, [bounds, map]);
   return null;
@@ -111,7 +110,7 @@ export default function DSETrackDetail() {
     setSp(params, { replace: true });
   }, [mode, date, from, to, maxAcc, sampleSec, setSp]);
 
-  // load
+  // load data
   useEffect(() => {
     if (!dseId) return;
     (async () => {
@@ -164,7 +163,8 @@ export default function DSETrackDetail() {
               DSE Detailed Route
             </h1>
             <p className="text-gray-400 text-sm">
-              View the connected path and points for the selected date/range.
+              View the connected path, stops and movement for the selected
+              date/range.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -244,30 +244,6 @@ export default function DSETrackDetail() {
                   onChange={(e) => setTo(e.target.value)}
                   className="bg-gray-900 border border-gray-700 text-white rounded px-3 py-2"
                 />
-                <Button
-                  variant="secondary"
-                  className="bg-gray-800 text-gray-200"
-                  onClick={() => {
-                    const s = startOfWeek(new Date());
-                    const e = endOfWeek(new Date());
-                    setFrom(toISODate(s));
-                    setTo(toISODate(e));
-                  }}
-                >
-                  This week
-                </Button>
-                <Button
-                  variant="secondary"
-                  className="bg-gray-800 text-gray-200"
-                  onClick={() => {
-                    const s = startOfMonth(new Date());
-                    const e = endOfMonth(new Date());
-                    setFrom(toISODate(s));
-                    setTo(toISODate(e));
-                  }}
-                >
-                  This month
-                </Button>
               </div>
             )}
           </div>
@@ -306,7 +282,6 @@ export default function DSETrackDetail() {
         </div>
 
         {/* Stats */}
-        {/* Stats */}
         <div className="flex flex-wrap gap-3">
           {mode === "day" && dayData && (
             <>
@@ -327,7 +302,6 @@ export default function DSETrackDetail() {
                 </div>
               </div>
 
-              {/* ✅ Start & End Address Cards */}
               {dayData.startAddress && (
                 <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-4 text-gray-100 w-full">
                   <div className="text-sm text-gray-400">Start Location</div>
@@ -340,29 +314,6 @@ export default function DSETrackDetail() {
                   <div className="text-md">{dayData.endAddress.display}</div>
                 </div>
               )}
-            </>
-          )}
-
-          {mode === "range" && rangeData && (
-            <>
-              <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-4 text-gray-100">
-                <div className="text-sm text-gray-400">Range</div>
-                <div className="text-lg font-semibold">
-                  {rangeData.from.slice(0, 10)} → {rangeData.to.slice(0, 10)}
-                </div>
-              </div>
-              <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-4 text-gray-100">
-                <div className="text-sm text-gray-400">Days</div>
-                <div className="text-lg font-semibold">
-                  {rangeData.days?.length ?? 0}
-                </div>
-              </div>
-              <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-4 text-gray-100">
-                <div className="text-sm text-gray-400">Total distance</div>
-                <div className="text-lg font-semibold">
-                  {totalRangeDistance} km
-                </div>
-              </div>
             </>
           )}
         </div>
@@ -379,6 +330,7 @@ export default function DSETrackDetail() {
               attribution='&copy; <a href="https://www.openstreetmap.org/">OSM</a> contributors'
             />
 
+            {/* --- DAY MODE --- */}
             {mode === "day" && dayData?.coords?.length > 1 && (
               <>
                 <Polyline
@@ -386,7 +338,6 @@ export default function DSETrackDetail() {
                   weight={5}
                   color="#60a5fa"
                 />
-                {/* Start & End markers */}
                 <Marker position={dayData.coords[0]}>
                   <Tooltip>
                     Start • {new Date(dayData.stats.first).toLocaleString()}
@@ -397,7 +348,8 @@ export default function DSETrackDetail() {
                     End • {new Date(dayData.stats.last).toLocaleString()}
                   </Tooltip>
                 </Marker>
-                {/* Optional mid points */}
+
+                {/* Regular points */}
                 {showPoints &&
                   dayData.points.slice(1, -1).map((p: any, i: number) => (
                     <CircleMarker
@@ -411,9 +363,38 @@ export default function DSETrackDetail() {
                       </Tooltip>
                     </CircleMarker>
                   ))}
+
+                {/* 🛑 Stop markers */}
+                {dayData.stops?.length > 0 &&
+                  dayData.stops.map((s: any, i: number) => (
+                    <Marker
+                      key={`stop-${i}`}
+                      position={[s.lat, s.lon]}
+                      icon={L.divIcon({
+                        className: "stop-marker",
+                        html: "🛑",
+                        iconSize: [24, 24],
+                        iconAnchor: [12, 12],
+                      })}
+                    >
+                      <Tooltip>
+                        <div>
+                          <strong>Stop {i + 1}</strong>
+                          <br />
+                          {s.address?.landmark || "—"}
+                          <br />
+                          {new Date(s.start).toLocaleTimeString()} →{" "}
+                          {new Date(s.end).toLocaleTimeString()}
+                          <br />
+                          {s.durationMin} min
+                        </div>
+                      </Tooltip>
+                    </Marker>
+                  ))}
               </>
             )}
 
+            {/* --- RANGE MODE --- */}
             {mode === "range" &&
               rangeData?.days?.map((d: any, idx: number) => (
                 <Polyline
@@ -428,7 +409,33 @@ export default function DSETrackDetail() {
           </MapContainer>
         </div>
 
-        {/* Per-day summary list (range) */}
+        {/* 🛑 Stop List */}
+        {mode === "day" && dayData?.stops && dayData.stops.length > 0 && (
+          <div className="mt-6 space-y-3">
+            <h2 className="text-red-400 font-semibold text-lg">
+              🛑 Detected Stops ({">"} 10 min)
+            </h2>
+            {dayData.stops.map((s: any, i: number) => (
+              <div
+                key={i}
+                className="border border-red-700/50 bg-red-900/10 rounded-lg p-3 text-gray-200"
+              >
+                <div className="font-semibold">
+                  Stop {i + 1}: {s.address?.display || "—"}
+                </div>
+                <div className="text-sm text-gray-400">
+                  🕒 {new Date(s.start).toLocaleTimeString()} →{" "}
+                  {new Date(s.end).toLocaleTimeString()} ({s.durationMin} min)
+                </div>
+                <div className="text-sm">
+                  📍 {s.lat.toFixed(5)}, {s.lon.toFixed(5)}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Per-day summary list */}
         {mode === "range" && rangeData?.days?.length > 0 && (
           <div className="rounded-xl border border-gray-800 overflow-x-auto">
             <table className="min-w-full text-sm">
