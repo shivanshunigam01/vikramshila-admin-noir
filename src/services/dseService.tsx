@@ -18,11 +18,22 @@ export const getAllDSELatest = async (activeWithinMinutes?: number) => {
   const url = `${API}/tracking/latest-all-with-dse${
     activeWithinMinutes ? `?activeWithinMinutes=${activeWithinMinutes}` : ""
   }`;
-  const { data } = await axios.get<AllDSEPoint[]>(url, {
-    withCredentials: true,
-  });
-  return data;
+
+  try {
+    const { data } = await axios.get(url, { withCredentials: true });
+
+    // Expected API shape: { activeWithinMinutes, total, online, rows: [] }
+    if (Array.isArray(data)) return data; // fallback if backend returns raw array
+    if (data && Array.isArray(data.rows)) return data.rows; // ✅ correct shape
+
+    console.warn("Unexpected response format in getAllDSELatest:", data);
+    return [];
+  } catch (err) {
+    console.error("Error fetching DSE latest:", err);
+    return [];
+  }
 };
+
 
 export const exportOneDSECSV = (id: string, from?: string, to?: string) => {
   const qs = new URLSearchParams();

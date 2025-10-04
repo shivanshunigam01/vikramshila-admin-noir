@@ -16,7 +16,7 @@ import {
   AllDSEPoint,
 } from "@/services/dseService";
 
-// Fix Leaflet default icon resolution warnings (we're using custom pins anyway)
+// Fix Leaflet default icon warnings
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
@@ -55,13 +55,23 @@ function initials(name = "") {
   return ((parts[0]?.[0] || "U") + (parts[1]?.[0] || "")).toUpperCase();
 }
 
-// ---------- pretty pin icon (SVG) + small cache ----------
+// ---------- pretty pin icon (SVG + photo support) ----------
 const ICON_CACHE: Record<string, L.DivIcon> = {};
-function pinIcon(color: string) {
-  if (ICON_CACHE[color]) return ICON_CACHE[color];
-  // 28x40 pin, white border, colored fill, drop shadow
+
+function pinIcon(color: string, photoUrl?: string) {
+  const key = `${color}-${photoUrl || "none"}`;
+  if (ICON_CACHE[key]) return ICON_CACHE[key];
+
+  const imgHtml = photoUrl
+    ? `<img src="${photoUrl}" alt="DSE" 
+        style="width:28px;height:28px;border-radius:50%;
+        border:2px solid white;box-shadow:0 0 4px rgba(0,0,0,0.5);
+        position:absolute;top:-36px;left:0;right:0;margin:auto;" />`
+    : "";
+
   const html = `
-  <div class="va-pin">
+  <div class="va-pin" style="position:relative;">
+    ${imgHtml}
     <svg width="28" height="40" viewBox="0 0 28 40">
       <defs>
         <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
@@ -74,22 +84,23 @@ function pinIcon(color: string) {
       <circle cx="14" cy="13" r="4.5" fill="white"/>
     </svg>
   </div>`;
-  ICON_CACHE[color] = L.divIcon({
+
+  ICON_CACHE[key] = L.divIcon({
     className: "va-pin-wrap",
     html,
     iconSize: [28, 40],
-    iconAnchor: [14, 40], // tip of the pin
-    popupAnchor: [0, -34], // popup above the pin
-    tooltipAnchor: [0, -36], // tooltip just above
+    iconAnchor: [14, 40],
+    popupAnchor: [0, -34],
+    tooltipAnchor: [0, -36],
   });
-  return ICON_CACHE[color];
+  return ICON_CACHE[key];
 }
 
 // ---------- anti-overlap: smart spread ----------
 type P = { lat: number; lon: number } & Record<string, any>;
 function spreadClosePoints<T extends P>(rows: T[], meters = 30) {
   if (!rows.length) return [];
-  const bucket = (x: number) => Math.round(x * 1e4) / 1e4; // ~11m bucket near equator
+  const bucket = (x: number) => Math.round(x * 1e4) / 1e4;
   const groups: Record<string, T[]> = {};
   for (const r of rows) {
     const key = `${bucket(r.lat)}|${bucket(r.lon)}`;
@@ -104,7 +115,6 @@ function spreadClosePoints<T extends P>(rows: T[], meters = 30) {
       continue;
     }
     const centerLatRad = (g[0].lat * Math.PI) / 180;
-    // meters ➜ degrees
     const dLat = (meters / R) * (180 / Math.PI);
     const dLon = (meters / (R * Math.cos(centerLatRad))) * (180 / Math.PI);
     g.forEach((pt, i) => {
@@ -168,7 +178,6 @@ export default function DSEMapAll() {
     if (!autoRefresh) return;
     const t = setInterval(fetchAll, 30000);
     return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeWithin, autoRefresh]);
 
   const filtered = useMemo(() => {
@@ -199,7 +208,7 @@ export default function DSEMapAll() {
   return (
     <div className="min-h-screen bg-black p-4 md:p-6">
       <div className="max-w-7xl mx-auto space-y-4">
-        {/* Header / Controls */}
+        {/* Header */}
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-white text-2xl font-bold">DSE Live Map</h1>
@@ -215,6 +224,7 @@ export default function DSEMapAll() {
             </div>
           </div>
 
+          {/* Controls */}
           <div className="flex flex-wrap gap-2">
             <input
               value={query}
@@ -257,26 +267,10 @@ export default function DSEMapAll() {
               />
               Auto refresh
             </label>
-            {/* CSV of the filtered set */}
-            <button
-              onClick={() => downloadFilteredCSV(spread)}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white rounded px-4 py-2"
-            >
-              ⬇️ Download CSV
-            </button>
-            <button
-              onClick={() => {
-                if (!bounds || !mapRef.current) return;
-                mapRef.current.fitBounds(bounds.pad(0.2));
-              }}
-              className="bg-gray-700 hover:bg-gray-600 text-white rounded px-3 py-2"
-            >
-              Fit to pins
-            </button>
           </div>
         </div>
 
-        {/* Empty state */}
+        {/* Empty */}
         {!loading && spread.length === 0 && (
           <div className="text-gray-400 bg-gray-900/60 border border-gray-800 rounded-xl p-4">
             No matching DSE locations. Try clearing filters or expanding time.
@@ -308,9 +302,8 @@ export default function DSEMapAll() {
                 <Marker
                   key={p._id}
                   position={[p.dispLat, p.dispLon]}
-                  icon={pinIcon(st.color)}
+                  icon={pinIcon(st.color, (p as any).dsePhotoUrl)} // ✅ include photo
                 >
-                  {/* floating name label */}
                   <Tooltip
                     direction="top"
                     offset={[0, -36]}
@@ -325,12 +318,20 @@ export default function DSEMapAll() {
                   <Popup>
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <span
-                          className="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold text-white"
-                          style={{ background: "#6366f1" }}
-                        >
-                          {init}
-                        </span>
+                        {(p as any).dsePhotoUrl ? (
+                          <img
+                            src={(p as any).dsePhotoUrl}
+                            alt="DSE"
+                            className="w-8 h-8 rounded-full border border-gray-300"
+                          />
+                        ) : (
+                          <span
+                            className="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold text-white"
+                            style={{ background: "#6366f1" }}
+                          >
+                            {init}
+                          </span>
+                        )}
                         <div className="font-bold">{p.dseName}</div>
                       </div>
                       <div className="text-sm">📞 {p.dsePhone || "—"}</div>
@@ -346,7 +347,6 @@ export default function DSEMapAll() {
                         {new Date(p.ts).toLocaleString()}
                       </div>
                       <div className="pt-2 flex flex-wrap gap-2">
-                        {/* ✅ FIXED: use p.user / p.ts here */}
                         <Link
                           to={`/admin/dse-track/${
                             p.user
@@ -389,16 +389,16 @@ export default function DSEMapAll() {
         </div>
       </div>
 
-      {/* styling for pin wrapper (keeps SVG crisp) */}
+      {/* styling */}
       <style>{`
-        .va-pin-wrap { }
-        .va-pin { transform: translate(-14px, -40px); }
+        .va-pin img { transition: transform 0.2s ease; }
+        .va-pin img:hover { transform: scale(1.15); }
       `}</style>
     </div>
   );
 }
 
-// client CSV from filtered rows
+// CSV Download Helper
 function downloadFilteredCSV(
   rows: (AllDSEPoint & { dispLat: number; dispLon: number })[]
 ) {
