@@ -11,10 +11,11 @@ import {
   csvClientVisitsUrl,
   ReportAttendanceRow,
   SummaryAllRow,
-  ClientVisit,
 } from "@/services/dseService";
 
-/* ---------------------- Helper Functions ---------------------- */
+/* ------------------------------------------------------------
+   Utility helpers
+------------------------------------------------------------ */
 function nowISODate() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -53,25 +54,27 @@ function statusOf(ts: string) {
   return { label: "Inactive", color: "bg-red-500", text: "text-red-400" };
 }
 
-/* ---------------------- Main Component ---------------------- */
+/* ------------------------------------------------------------
+   MAIN PAGE
+------------------------------------------------------------ */
 export default function DSEReports() {
   const [tab, setTab] = useState<
     "attendance" | "overview" | "summary" | "visits"
   >("attendance");
 
-  /* ---------- Attendance ---------- */
+  // Attendance
   const [date, setDate] = useState(nowISODate());
   const [attRows, setAttRows] = useState<ReportAttendanceRow[]>([]);
   const [attLoading, setAttLoading] = useState(false);
   const [attQ, setAttQ] = useState("");
 
-  /* ---------- Overview ---------- */
+  // Overview
   const [latest, setLatest] = useState<any[]>([]);
   const [latestLoading, setLatestLoading] = useState(false);
   const [latestQ, setLatestQ] = useState("");
   const [activeWithin, setActiveWithin] = useState<string>("60");
 
-  /* ---------- Summary ---------- */
+  // Summary
   const [from, setFrom] = useState(toISODate(addDays(new Date(), -7)));
   const [to, setTo] = useState(nowISODate());
   const [bucket, setBucket] = useState<"day" | "week" | "month">("day");
@@ -79,12 +82,15 @@ export default function DSEReports() {
   const [sumLoading, setSumLoading] = useState(false);
   const [sumQ, setSumQ] = useState("");
 
-  /* ---------- Client Visits ---------- */
-  const [visits, setVisits] = useState<ClientVisit[]>([]);
+  // Client Visits
+  const [visits, setVisits] = useState<any[]>([]);
   const [visitLoading, setVisitLoading] = useState(false);
   const [visitQ, setVisitQ] = useState("");
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-  /* ---------------------- Loaders ---------------------- */
+  /* ------------------------------------------------------------
+     Loaders
+  ------------------------------------------------------------ */
   useEffect(() => {
     (async () => {
       setAttLoading(true);
@@ -126,7 +132,6 @@ export default function DSEReports() {
   }, [from, to, bucket]);
 
   useEffect(() => {
-    if (tab !== "visits") return;
     (async () => {
       setVisitLoading(true);
       try {
@@ -136,9 +141,11 @@ export default function DSEReports() {
         setVisitLoading(false);
       }
     })();
-  }, [tab]);
+  }, []);
 
-  /* ---------------------- Filters ---------------------- */
+  /* ------------------------------------------------------------
+     Filters
+  ------------------------------------------------------------ */
   const attFiltered = useMemo(() => {
     const q = attQ.trim().toLowerCase();
     return !q
@@ -174,42 +181,45 @@ export default function DSEReports() {
 
   const visitFiltered = useMemo(() => {
     const q = visitQ.trim().toLowerCase();
-    if (!q) return visits;
-    return visits.filter(
-      (v) =>
-        v.dseName.toLowerCase().includes(q) ||
-        v.dsePhone.toLowerCase().includes(q) ||
-        v.clientName.toLowerCase().includes(q)
-    );
+    return !q
+      ? visits
+      : visits.filter(
+          (v) =>
+            v.dseName?.toLowerCase().includes(q) ||
+            (v.dsePhone || "").toLowerCase().includes(q) ||
+            (v.clientName || "").toLowerCase().includes(q)
+        );
   }, [visits, visitQ]);
 
-  /* ---------------------- UI ---------------------- */
+  /* ------------------------------------------------------------
+     JSX
+  ------------------------------------------------------------ */
   return (
     <div className="min-h-screen bg-black p-6">
       <div className="max-w-7xl mx-auto">
         {/* Tabs */}
         <div className="flex items-center gap-2 mb-6 flex-wrap">
           {[
-            ["attendance", "Attendance (Day)"],
-            ["overview", "All DSEs Overview"],
-            ["summary", "Movement Summary"],
-            ["visits", "Client Visits"],
-          ].map(([key, label]) => (
+            { key: "attendance", label: "Attendance (Day)" },
+            { key: "overview", label: "All DSEs Overview" },
+            { key: "summary", label: "Movement Summary" },
+            { key: "visits", label: "Client Visits" },
+          ].map((t) => (
             <button
-              key={key}
-              onClick={() => setTab(key as any)}
+              key={t.key}
+              onClick={() => setTab(t.key as any)}
               className={`px-4 py-2 rounded-lg border ${
-                tab === key
+                tab === t.key
                   ? "bg-blue-600 text-white border-blue-500"
                   : "bg-gray-900 text-gray-200 border-gray-700 hover:bg-gray-800"
               }`}
             >
-              {label}
+              {t.label}
             </button>
           ))}
         </div>
 
-        {/* ---------- Attendance ---------- */}
+        {/* ---------------- Attendance ---------------- */}
         {tab === "attendance" && (
           <section className="space-y-4">
             <div className="flex flex-wrap items-center gap-3">
@@ -236,7 +246,6 @@ export default function DSEReports() {
                 className="ml-auto bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 w-64"
               />
             </div>
-
             <div className="overflow-x-auto rounded-xl border border-gray-800">
               <table className="min-w-full text-sm">
                 <thead className="bg-gray-900 text-gray-300">
@@ -298,7 +307,7 @@ export default function DSEReports() {
           </section>
         )}
 
-        {/* ---------- Overview ---------- */}
+        {/* ---------------- Overview ---------------- */}
         {tab === "overview" && (
           <section className="space-y-4">
             <div className="flex flex-wrap items-center gap-3">
@@ -332,7 +341,6 @@ export default function DSEReports() {
                 className="ml-auto bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 w-64"
               />
             </div>
-
             <div className="overflow-x-auto rounded-xl border border-gray-800">
               <table className="min-w-full text-sm">
                 <thead className="bg-gray-900 text-gray-300">
@@ -377,7 +385,11 @@ export default function DSEReports() {
                           </td>
                           <td className="p-3">{humanSince(p.ts)}</td>
                           <td className="p-3">
-                            {p.lat.toFixed(5)}, {p.lon.toFixed(5)}
+                            {p.lat && p.lon
+                              ? `${Number(p.lat).toFixed(5)}, ${Number(
+                                  p.lon
+                                ).toFixed(5)}`
+                              : "—"}
                           </td>
                           <td className="p-3">
                             <div className="flex flex-wrap gap-3">
@@ -393,13 +405,15 @@ export default function DSEReports() {
                               >
                                 Summary
                               </Link>
-                              <a
-                                className="text-emerald-400 underline"
-                                href={`https://maps.google.com/?q=${p.lat},${p.lon}`}
-                                target="_blank"
-                              >
-                                Google Maps
-                              </a>
+                              {p.lat && p.lon && (
+                                <a
+                                  className="text-emerald-400 underline"
+                                  href={`https://maps.google.com/?q=${p.lat},${p.lon}`}
+                                  target="_blank"
+                                >
+                                  Google Maps
+                                </a>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -412,7 +426,7 @@ export default function DSEReports() {
           </section>
         )}
 
-        {/* ---------- Summary ---------- */}
+        {/* ---------------- Movement Summary ---------------- */}
         {tab === "summary" && (
           <section className="space-y-4">
             <div className="flex flex-wrap items-center gap-3">
@@ -458,7 +472,6 @@ export default function DSEReports() {
                 className="ml-auto bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 w-64"
               />
             </div>
-
             {sumLoading ? (
               <div className="text-gray-400">Loading…</div>
             ) : sumFiltered.length === 0 ? (
@@ -479,14 +492,12 @@ export default function DSEReports() {
                           {row.phone || "—"}
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <Link
-                          to={`/admin/dse-reports/${row.dseId}`}
-                          className="text-indigo-400 underline"
-                        >
-                          Open DSE summary
-                        </Link>
-                      </div>
+                      <Link
+                        to={`/admin/dse-reports/${row.dseId}`}
+                        className="text-indigo-400 underline"
+                      >
+                        Open DSE summary
+                      </Link>
                     </div>
                     <div className="overflow-x-auto">
                       <table className="min-w-full text-sm">
@@ -539,7 +550,7 @@ export default function DSEReports() {
           </section>
         )}
 
-        {/* ---------- Client Visits ---------- */}
+        {/* ---------------- Client Visits ---------------- */}
         {tab === "visits" && (
           <section className="space-y-4">
             <div className="flex flex-wrap items-center gap-3">
@@ -576,50 +587,86 @@ export default function DSEReports() {
                 <tbody className="divide-y divide-gray-800 bg-black text-gray-100">
                   {visitLoading ? (
                     <tr>
-                      <td className="p-4 text-gray-400" colSpan={6}>
+                      <td colSpan={6} className="p-4 text-gray-400">
                         Loading…
                       </td>
                     </tr>
                   ) : visitFiltered.length === 0 ? (
                     <tr>
-                      <td className="p-4 text-gray-400" colSpan={6}>
-                        No client visits found
+                      <td colSpan={6} className="p-4 text-gray-400">
+                        No client visits yet.
                       </td>
                     </tr>
                   ) : (
-                    visitFiltered.map((v) => (
-                      <tr key={v._id} className="hover:bg-gray-900/60">
-                        <td className="p-3">{v.dseName}</td>
-                        <td className="p-3">{v.dsePhone || "—"}</td>
-                        <td className="p-3 font-semibold text-emerald-400">
-                          {v.clientName}
-                        </td>
-                        <td className="p-3">
-                          <img
-                            src={v.photoUrl}
-                            alt={v.clientName}
-                            className="w-12 h-12 object-cover rounded-lg border border-gray-700"
-                          />
-                        </td>
-                        <td className="p-3">
-                          <a
-                            href={`https://maps.google.com/?q=${v.location.lat},${v.location.lon}`}
-                            target="_blank"
-                            className="text-blue-400 underline"
-                          >
-                            {v.location.lat.toFixed(4)},{" "}
-                            {v.location.lon.toFixed(4)}
-                          </a>
-                        </td>
-                        <td className="p-3">
-                          {new Date(v.createdAt).toLocaleString()}
-                        </td>
-                      </tr>
-                    ))
+                    visitFiltered.map((v) => {
+                      const lat =
+                        v.lat ?? v.location?.lat ?? v.coords?.lat ?? null;
+                      const lon =
+                        v.lon ?? v.location?.lon ?? v.coords?.lon ?? null;
+                      return (
+                        <tr key={v._id} className="hover:bg-gray-900/60">
+                          <td className="p-3">{v.dseName}</td>
+                          <td className="p-3">{v.dsePhone || "—"}</td>
+                          <td className="p-3 text-emerald-400">
+                            {v.clientName || "—"}
+                          </td>
+                          <td className="p-3">
+                            {v.photoUrl ? (
+                              <img
+                                src={v.photoUrl}
+                                alt="visit"
+                                className="w-12 h-12 rounded-md object-cover cursor-pointer hover:opacity-80 transition"
+                                onClick={() => setPreviewUrl(v.photoUrl)}
+                              />
+                            ) : (
+                              "—"
+                            )}
+                          </td>
+                          <td className="p-3">
+                            {lat && lon ? (
+                              <a
+                                href={`https://maps.google.com/?q=${lat},${lon}`}
+                                target="_blank"
+                                className="text-sky-400 underline"
+                              >
+                                {Number(lat).toFixed(4)},{" "}
+                                {Number(lon).toFixed(4)}
+                              </a>
+                            ) : (
+                              <span className="text-gray-500">—</span>
+                            )}
+                          </td>
+                          <td className="p-3">
+                            {v.createdAt
+                              ? new Date(v.createdAt).toLocaleString()
+                              : "—"}
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
             </div>
+
+            {/* Image Preview Modal */}
+            {previewUrl && (
+              <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+                <div className="relative">
+                  <button
+                    onClick={() => setPreviewUrl(null)}
+                    className="absolute -top-4 -right-4 bg-red-600 hover:bg-red-700 text-white rounded-full w-8 h-8 flex items-center justify-center shadow-lg"
+                  >
+                    ✕
+                  </button>
+                  <img
+                    src={previewUrl}
+                    alt="Preview"
+                    className="max-h-[80vh] max-w-[90vw] rounded-lg border border-gray-700 shadow-2xl object-contain"
+                  />
+                </div>
+              </div>
+            )}
           </section>
         )}
       </div>
