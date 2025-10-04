@@ -19,20 +19,14 @@ export const getAllDSELatest = async (activeWithinMinutes?: number) => {
     activeWithinMinutes ? `?activeWithinMinutes=${activeWithinMinutes}` : ""
   }`;
 
-  try {
-    const { data } = await axios.get(url, { withCredentials: true });
+  const { data } = await axios.get(url, { withCredentials: true });
 
-    // Expected API shape: { activeWithinMinutes, total, online, rows: [] }
-    if (Array.isArray(data)) return data; // fallback if backend returns raw array
-    if (data && Array.isArray(data.rows)) return data.rows; // ✅ correct shape
-
-    console.warn("Unexpected response format in getAllDSELatest:", data);
-    return [];
-  } catch (err) {
-    console.error("Error fetching DSE latest:", err);
-    return [];
-  }
+  // ✅ Handle both array and object with rows
+  if (Array.isArray(data)) return data;
+  if (data?.rows) return data.rows;
+  return [];
 };
+
 
 
 export const exportOneDSECSV = (id: string, from?: string, to?: string) => {

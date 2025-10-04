@@ -16,7 +16,7 @@ import {
   AllDSEPoint,
 } from "@/services/dseService";
 
-// Fix Leaflet default icon warnings
+// ---------- Fix Leaflet default icon warnings ----------
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
@@ -29,10 +29,11 @@ L.Icon.Default.mergeOptions({
 
 const INDIA_CENTER: [number, number] = [20.5937, 78.9629];
 
-// ---------- time & status helpers ----------
+// ---------- Helper functions ----------
 function minutesDiff(ts: string) {
   return Math.max(0, Math.floor((Date.now() - new Date(ts).getTime()) / 60000));
 }
+
 function humanSince(ts: string) {
   const m = minutesDiff(ts);
   if (m < 1) return "just now";
@@ -44,18 +45,22 @@ function humanSince(ts: string) {
   const rh = h % 24;
   return rh ? `${d}d ${rh}h ago` : `${d}d ago`;
 }
-function statusOf(ts: string) {
-  const m = minutesDiff(ts);
-  if (m <= 5) return { label: "Online", color: "#22c55e" }; // green
-  if (m <= 30) return { label: "Recently Active", color: "#f59e0b" }; // amber
-  return { label: "Inactive", color: "#ef4444" }; // red
+
+function statusOf(provider?: string, ts?: string) {
+  if (provider === "manual_offline")
+    return { label: "Stopped manually", color: "#ef4444" };
+  const m = ts ? minutesDiff(ts) : 999;
+  if (m <= 5) return { label: "Online", color: "#22c55e" };
+  if (m <= 30) return { label: "Recently Active", color: "#f59e0b" };
+  return { label: "Inactive", color: "#ef4444" };
 }
+
 function initials(name = "") {
   const parts = name.trim().split(/\s+/);
   return ((parts[0]?.[0] || "U") + (parts[1]?.[0] || "")).toUpperCase();
 }
 
-// ---------- pretty pin icon (SVG + photo support) ----------
+// ---------- Custom pretty map pin (SVG + photo + status dot) ----------
 const ICON_CACHE: Record<string, L.DivIcon> = {};
 
 function pinIcon(color: string, photoUrl?: string) {
@@ -63,40 +68,45 @@ function pinIcon(color: string, photoUrl?: string) {
   if (ICON_CACHE[key]) return ICON_CACHE[key];
 
   const imgHtml = photoUrl
-    ? `<img src="${photoUrl}" alt="DSE" 
-        style="width:28px;height:28px;border-radius:50%;
-        border:2px solid white;box-shadow:0 0 4px rgba(0,0,0,0.5);
-        position:absolute;top:-36px;left:0;right:0;margin:auto;" />`
-    : "";
+    ? `<div style="position:relative;width:30px;height:30px;margin:auto;">
+        <img src="${photoUrl}" alt="DSE"
+          style="width:30px;height:30px;border-radius:50%;
+          border:2px solid white;box-shadow:0 0 4px rgba(0,0,0,0.5);"/>
+        <div style="position:absolute;top:-5px;right:-5px;
+          width:10px;height:10px;border-radius:50%;
+          background:${color};border:1.5px solid white;"></div>
+       </div>`
+    : `<div style="position:relative;width:30px;height:30px;margin:auto;">
+        <div style="width:30px;height:30px;border-radius:50%;
+          background:#6366f1;color:white;font-size:12px;
+          display:flex;align-items:center;justify-content:center;
+          font-weight:bold;">?</div>
+        <div style="position:absolute;top:-5px;right:-5px;
+          width:10px;height:10px;border-radius:50%;
+          background:${color};border:1.5px solid white;"></div>
+       </div>`;
 
   const html = `
-  <div class="va-pin" style="position:relative;">
+  <div class="va-pin" style="position:relative;text-align:center;">
     ${imgHtml}
-    <svg width="28" height="40" viewBox="0 0 28 40">
-      <defs>
-        <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="rgba(0,0,0,0.35)"/>
-        </filter>
-      </defs>
-      <path filter="url(#shadow)"
-            d="M14 0c-7.18 0-13 5.82-13 13 0 10.5 13 27 13 27s13-16.5 13-27C27 5.82 21.18 0 14 0z"
-            fill="${color}" stroke="white" stroke-width="2"/>
-      <circle cx="14" cy="13" r="4.5" fill="white"/>
+    <svg width="28" height="38" viewBox="0 0 28 38">
+      <path d="M14 0C6 0 0 6 0 14c0 10 14 24 14 24s14-14 14-24C28 6 22 0 14 0z"
+        fill="${color}" opacity="0.35"/>
     </svg>
   </div>`;
 
   ICON_CACHE[key] = L.divIcon({
     className: "va-pin-wrap",
     html,
-    iconSize: [28, 40],
-    iconAnchor: [14, 40],
+    iconSize: [28, 38],
+    iconAnchor: [14, 38],
     popupAnchor: [0, -34],
     tooltipAnchor: [0, -36],
   });
   return ICON_CACHE[key];
 }
 
-// ---------- anti-overlap: smart spread ----------
+// ---------- anti-overlap (spread close points) ----------
 type P = { lat: number; lon: number } & Record<string, any>;
 function spreadClosePoints<T extends P>(rows: T[], meters = 30) {
   if (!rows.length) return [];
@@ -147,14 +157,55 @@ function Legend({ color, label }: { color: string; label: string }) {
   );
 }
 
-// ---------- PAGE ----------
+// ---------- CSV Export ----------
+function downloadFilteredCSV(
+  rows: (AllDSEPoint & { dispLat: number; dispLon: number })[]
+) {
+  const headers = [
+    "Name",
+    "Phone",
+    "Latitude",
+    "Longitude",
+    "Accuracy",
+    "Speed",
+    "Timestamp",
+    "Provider",
+    "Status",
+    "Since",
+  ];
+  const lines = rows.map((p) => {
+    const st = statusOf(p.provider, p.ts);
+    return [
+      `"${(p.dseName || "").replace(/"/g, '""')}"`,
+      `"${(p.dsePhone || "").replace(/"/g, '""')}"`,
+      p.lat,
+      p.lon,
+      p.acc ?? "",
+      p.speed ?? "",
+      new Date(p.ts).toISOString(),
+      p.provider ?? "",
+      st.label,
+      p.lastSeenAgo || humanSince(p.ts),
+    ].join(",");
+  });
+  const csv = [headers.join(","), ...lines].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "dse-latest-filtered.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ---------- Main Page ----------
 export default function DSEMapAll() {
   const [points, setPoints] = useState<AllDSEPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeWithin, setActiveWithin] = useState<number | "">("");
   const [query, setQuery] = useState("");
   const [onlyStatus, setOnlyStatus] = useState<
-    "all" | "online" | "recent" | "inactive"
+    "all" | "online" | "recent" | "inactive" | "stopped"
   >("all");
   const [autoRefresh, setAutoRefresh] = useState(true);
 
@@ -183,7 +234,7 @@ export default function DSEMapAll() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return (points || []).filter((p) => {
-      const st = statusOf(p.ts).label;
+      const st = statusOf(p.provider, p.ts).label;
       const byName =
         !q ||
         p.dseName.toLowerCase().includes(q) ||
@@ -192,7 +243,8 @@ export default function DSEMapAll() {
         onlyStatus === "all" ||
         (onlyStatus === "online" && st === "Online") ||
         (onlyStatus === "recent" && st === "Recently Active") ||
-        (onlyStatus === "inactive" && st === "Inactive");
+        (onlyStatus === "inactive" && st === "Inactive") ||
+        (onlyStatus === "stopped" && st === "Stopped manually");
       return byName && byStatus;
     });
   }, [points, query, onlyStatus]);
@@ -220,7 +272,7 @@ export default function DSEMapAll() {
             <div className="mt-2 flex items-center gap-4 text-sm">
               <Legend color="#22c55e" label="Online ≤ 5m" />
               <Legend color="#f59e0b" label="Recently Active ≤ 30m" />
-              <Legend color="#ef4444" label="Inactive > 30m" />
+              <Legend color="#ef4444" label="Inactive / Stopped manually" />
             </div>
           </div>
 
@@ -241,6 +293,7 @@ export default function DSEMapAll() {
               <option value="online">Online</option>
               <option value="recent">Recently Active</option>
               <option value="inactive">Inactive</option>
+              <option value="stopped">Stopped manually</option>
             </select>
             <select
               className="bg-gray-800 text-white rounded px-3 py-2 border border-gray-700"
@@ -267,6 +320,12 @@ export default function DSEMapAll() {
               />
               Auto refresh
             </label>
+            <button
+              onClick={() => downloadFilteredCSV(spread)}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white rounded px-4 py-2"
+            >
+              Export CSV
+            </button>
           </div>
         </div>
 
@@ -295,21 +354,16 @@ export default function DSEMapAll() {
             />
 
             {spread.map((p) => {
-              const st = statusOf(p.ts);
-              const since = humanSince(p.ts);
+              const st = statusOf(p.provider, p.ts);
+              const since = p.lastSeenAgo || humanSince(p.ts);
               const init = initials(p.dseName);
               return (
                 <Marker
                   key={p._id}
                   position={[p.dispLat, p.dispLon]}
-                  icon={pinIcon(st.color, (p as any).dsePhotoUrl)} // ✅ include photo
+                  icon={pinIcon(st.color, (p as any).dsePhotoUrl)}
                 >
-                  <Tooltip
-                    direction="top"
-                    offset={[0, -36]}
-                    opacity={1}
-                    permanent
-                  >
+                  <Tooltip direction="top" offset={[0, -36]} opacity={1} permanent>
                     <div className="text-xs font-semibold px-2 py-1 rounded bg-white shadow">
                       {p.dseName}
                     </div>
@@ -389,50 +443,11 @@ export default function DSEMapAll() {
         </div>
       </div>
 
-      {/* styling */}
+      {/* Custom styling */}
       <style>{`
         .va-pin img { transition: transform 0.2s ease; }
         .va-pin img:hover { transform: scale(1.15); }
       `}</style>
     </div>
   );
-}
-
-// CSV Download Helper
-function downloadFilteredCSV(
-  rows: (AllDSEPoint & { dispLat: number; dispLon: number })[]
-) {
-  const headers = [
-    "Name",
-    "Phone",
-    "Latitude",
-    "Longitude",
-    "Accuracy",
-    "Speed",
-    "Timestamp",
-    "Status",
-    "Since",
-  ];
-  const lines = rows.map((p) => {
-    const st = statusOf(p.ts);
-    return [
-      `"${(p.dseName || "").replace(/"/g, '""')}"`,
-      `"${(p.dsePhone || "").replace(/"/g, '""')}"`,
-      p.lat,
-      p.lon,
-      p.acc ?? "",
-      p.speed ?? "",
-      new Date(p.ts).toISOString(),
-      st.label,
-      humanSince(p.ts),
-    ].join(",");
-  });
-  const csv = [headers.join(","), ...lines].join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "dse-latest-filtered.csv";
-  a.click();
-  URL.revokeObjectURL(url);
 }
