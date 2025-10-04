@@ -4,13 +4,17 @@ import {
   getAttendance,
   getAllDSELatest,
   getSummaryAll,
+  getClientVisits,
   csvAttendanceUrl,
   csvSummaryAllUrl,
   csvLatestAllUrl,
+  csvClientVisitsUrl,
   ReportAttendanceRow,
   SummaryAllRow,
+  ClientVisit,
 } from "@/services/dseService";
 
+/* ---------------------- Helper Functions ---------------------- */
 function nowISODate() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -22,7 +26,6 @@ function addDays(d: Date, n: number) {
 function toISODate(d: Date) {
   return d.toISOString().slice(0, 10);
 }
-
 function minutesDiff(ts: string) {
   return Math.max(0, Math.floor((Date.now() - new Date(ts).getTime()) / 60000));
 }
@@ -50,24 +53,25 @@ function statusOf(ts: string) {
   return { label: "Inactive", color: "bg-red-500", text: "text-red-400" };
 }
 
+/* ---------------------- Main Component ---------------------- */
 export default function DSEReports() {
-  const [tab, setTab] = useState<"attendance" | "overview" | "summary">(
-    "attendance"
-  );
+  const [tab, setTab] = useState<
+    "attendance" | "overview" | "summary" | "visits"
+  >("attendance");
 
-  // Attendance state
+  /* ---------- Attendance ---------- */
   const [date, setDate] = useState(nowISODate());
   const [attRows, setAttRows] = useState<ReportAttendanceRow[]>([]);
   const [attLoading, setAttLoading] = useState(false);
   const [attQ, setAttQ] = useState("");
 
-  // Overview state
+  /* ---------- Overview ---------- */
   const [latest, setLatest] = useState<any[]>([]);
   const [latestLoading, setLatestLoading] = useState(false);
   const [latestQ, setLatestQ] = useState("");
   const [activeWithin, setActiveWithin] = useState<string>("60");
 
-  // Summary state
+  /* ---------- Summary ---------- */
   const [from, setFrom] = useState(toISODate(addDays(new Date(), -7)));
   const [to, setTo] = useState(nowISODate());
   const [bucket, setBucket] = useState<"day" | "week" | "month">("day");
@@ -75,7 +79,12 @@ export default function DSEReports() {
   const [sumLoading, setSumLoading] = useState(false);
   const [sumQ, setSumQ] = useState("");
 
-  // Loaders
+  /* ---------- Client Visits ---------- */
+  const [visits, setVisits] = useState<ClientVisit[]>([]);
+  const [visitLoading, setVisitLoading] = useState(false);
+  const [visitQ, setVisitQ] = useState("");
+
+  /* ---------------------- Loaders ---------------------- */
   useEffect(() => {
     (async () => {
       setAttLoading(true);
@@ -116,7 +125,20 @@ export default function DSEReports() {
     })();
   }, [from, to, bucket]);
 
-  // Filters
+  useEffect(() => {
+    if (tab !== "visits") return;
+    (async () => {
+      setVisitLoading(true);
+      try {
+        const d = await getClientVisits();
+        setVisits(d);
+      } finally {
+        setVisitLoading(false);
+      }
+    })();
+  }, [tab]);
+
+  /* ---------------------- Filters ---------------------- */
   const attFiltered = useMemo(() => {
     const q = attQ.trim().toLowerCase();
     return !q
@@ -150,43 +172,44 @@ export default function DSEReports() {
         );
   }, [sumRows, sumQ]);
 
+  const visitFiltered = useMemo(() => {
+    const q = visitQ.trim().toLowerCase();
+    if (!q) return visits;
+    return visits.filter(
+      (v) =>
+        v.dseName.toLowerCase().includes(q) ||
+        v.dsePhone.toLowerCase().includes(q) ||
+        v.clientName.toLowerCase().includes(q)
+    );
+  }, [visits, visitQ]);
+
+  /* ---------------------- UI ---------------------- */
   return (
     <div className="min-h-screen bg-black p-6">
       <div className="max-w-7xl mx-auto">
         {/* Tabs */}
-        <div className="flex items-center gap-2 mb-6">
-          <button
-            onClick={() => setTab("attendance")}
-            className={`px-4 py-2 rounded-lg border ${
-              tab === "attendance"
-                ? "bg-blue-600 text-white border-blue-500"
-                : "bg-gray-900 text-gray-200 border-gray-700 hover:bg-gray-800"
-            }`}
-          >
-            Attendance (Day)
-          </button>
-          <button
-            onClick={() => setTab("overview")}
-            className={`px-4 py-2 rounded-lg border ${
-              tab === "overview"
-                ? "bg-blue-600 text-white border-blue-500"
-                : "bg-gray-900 text-gray-200 border-gray-700 hover:bg-gray-800"
-            }`}
-          >
-            All DSEs Overview
-          </button>
-          <button
-            onClick={() => setTab("summary")}
-            className={`px-4 py-2 rounded-lg border ${
-              tab === "summary"
-                ? "bg-blue-600 text-white border-blue-500"
-                : "bg-gray-900 text-gray-200 border-gray-700 hover:bg-gray-800"
-            }`}
-          >
-            Movement Summary
-          </button>
+        <div className="flex items-center gap-2 mb-6 flex-wrap">
+          {[
+            ["attendance", "Attendance (Day)"],
+            ["overview", "All DSEs Overview"],
+            ["summary", "Movement Summary"],
+            ["visits", "Client Visits"],
+          ].map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setTab(key as any)}
+              className={`px-4 py-2 rounded-lg border ${
+                tab === key
+                  ? "bg-blue-600 text-white border-blue-500"
+                  : "bg-gray-900 text-gray-200 border-gray-700 hover:bg-gray-800"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
+        {/* ---------- Attendance ---------- */}
         {tab === "attendance" && (
           <section className="space-y-4">
             <div className="flex flex-wrap items-center gap-3">
@@ -275,6 +298,7 @@ export default function DSEReports() {
           </section>
         )}
 
+        {/* ---------- Overview ---------- */}
         {tab === "overview" && (
           <section className="space-y-4">
             <div className="flex flex-wrap items-center gap-3">
@@ -388,6 +412,7 @@ export default function DSEReports() {
           </section>
         )}
 
+        {/* ---------- Summary ---------- */}
         {tab === "summary" && (
           <section className="space-y-4">
             <div className="flex flex-wrap items-center gap-3">
@@ -461,16 +486,6 @@ export default function DSEReports() {
                         >
                           Open DSE summary
                         </Link>
-                        <a
-                          href={csvSummaryAllUrl(
-                            `${from}T00:00:00.000Z`,
-                            `${to}T23:59:59.999Z`,
-                            bucket
-                          )}
-                          className="text-gray-400 text-sm hidden"
-                        >
-                          all csv
-                        </a>
                       </div>
                     </div>
                     <div className="overflow-x-auto">
@@ -521,6 +536,90 @@ export default function DSEReports() {
                 ))}
               </div>
             )}
+          </section>
+        )}
+
+        {/* ---------- Client Visits ---------- */}
+        {tab === "visits" && (
+          <section className="space-y-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="text-white text-xl font-semibold">
+                Client Visits — all DSEs
+              </h2>
+              <a
+                href={csvClientVisitsUrl}
+                target="_blank"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white rounded px-4 py-2"
+              >
+                ⬇️ Download CSV
+              </a>
+              <input
+                placeholder="Search DSE / client / phone"
+                value={visitQ}
+                onChange={(e) => setVisitQ(e.target.value)}
+                className="ml-auto bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 w-64"
+              />
+            </div>
+
+            <div className="overflow-x-auto rounded-xl border border-gray-800">
+              <table className="min-w-full text-sm">
+                <thead className="bg-gray-900 text-gray-300">
+                  <tr>
+                    <th className="p-3 text-left">DSE</th>
+                    <th className="p-3 text-left">Phone</th>
+                    <th className="p-3 text-left">Client</th>
+                    <th className="p-3 text-left">Photo</th>
+                    <th className="p-3 text-left">Location</th>
+                    <th className="p-3 text-left">Date</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-800 bg-black text-gray-100">
+                  {visitLoading ? (
+                    <tr>
+                      <td className="p-4 text-gray-400" colSpan={6}>
+                        Loading…
+                      </td>
+                    </tr>
+                  ) : visitFiltered.length === 0 ? (
+                    <tr>
+                      <td className="p-4 text-gray-400" colSpan={6}>
+                        No client visits found
+                      </td>
+                    </tr>
+                  ) : (
+                    visitFiltered.map((v) => (
+                      <tr key={v._id} className="hover:bg-gray-900/60">
+                        <td className="p-3">{v.dseName}</td>
+                        <td className="p-3">{v.dsePhone || "—"}</td>
+                        <td className="p-3 font-semibold text-emerald-400">
+                          {v.clientName}
+                        </td>
+                        <td className="p-3">
+                          <img
+                            src={v.photoUrl}
+                            alt={v.clientName}
+                            className="w-12 h-12 object-cover rounded-lg border border-gray-700"
+                          />
+                        </td>
+                        <td className="p-3">
+                          <a
+                            href={`https://maps.google.com/?q=${v.location.lat},${v.location.lon}`}
+                            target="_blank"
+                            className="text-blue-400 underline"
+                          >
+                            {v.location.lat.toFixed(4)},{" "}
+                            {v.location.lon.toFixed(4)}
+                          </a>
+                        </td>
+                        <td className="p-3">
+                          {new Date(v.createdAt).toLocaleString()}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </section>
         )}
       </div>

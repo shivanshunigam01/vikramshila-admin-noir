@@ -27,8 +27,6 @@ export const getAllDSELatest = async (activeWithinMinutes?: number) => {
   return [];
 };
 
-
-
 export const exportOneDSECSV = (id: string, from?: string, to?: string) => {
   const qs = new URLSearchParams();
   if (from) qs.set("from", from);
@@ -199,3 +197,36 @@ export const csvTrackDayUrl = (
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   return `${API}/tracking/export/track/day/${id}.csv${suffix}`;
 };
+
+// ---------- Client Visits ----------
+export interface ClientVisit {
+  _id: string;
+  dse: string;
+  dseName: string;
+  dsePhone: string;
+  clientName: string;
+  location: { lat: number; lon: number; acc?: number };
+  photoUrl: string;
+  photoPublicId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const getClientVisits = async (
+  dseId?: string,
+  from?: string,
+  to?: string
+): Promise<ClientVisit[]> => {
+  const params = new URLSearchParams();
+  if (dseId) params.set("dseId", dseId);
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+
+  const { data } = await axios.get(`${API}/tracking/client-visits`, {
+    params,
+    withCredentials: true,
+  });
+  return data;
+};
+
+export const csvClientVisitsUrl = `${API}/tracking/export/client-visits.csv`;
