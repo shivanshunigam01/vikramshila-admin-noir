@@ -183,11 +183,18 @@ export default function DSEReports() {
     const q = visitQ.trim().toLowerCase();
     return !q
       ? visits
-      : visits.filter(
-          (v) =>
-            v.dseName?.toLowerCase().includes(q) ||
-            (v.dsePhone || "").toLowerCase().includes(q) ||
-            (v.clientName || "").toLowerCase().includes(q)
+      : visits.filter((v) =>
+          [
+            v.dseName,
+            v.dsePhone,
+            v.clientName,
+            v.clientMobile,
+            v.currentAddress,
+            v.permanentAddress,
+          ]
+            .join(" ")
+            .toLowerCase()
+            .includes(q)
         );
   }, [visits, visitQ]);
 
@@ -565,7 +572,7 @@ export default function DSEReports() {
                 ⬇️ Download CSV
               </a>
               <input
-                placeholder="Search DSE / client / phone"
+                placeholder="Search DSE / client / phone / address"
                 value={visitQ}
                 onChange={(e) => setVisitQ(e.target.value)}
                 className="ml-auto bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 w-64"
@@ -577,50 +584,52 @@ export default function DSEReports() {
                 <thead className="bg-gray-900 text-gray-300">
                   <tr>
                     <th className="p-3 text-left">DSE</th>
-                    <th className="p-3 text-left">Phone</th>
-                    <th className="p-3 text-left">Client</th>
-                    <th className="p-3 text-left">Photo</th>
+                    <th className="p-3 text-left">DSE Phone</th>
+                    <th className="p-3 text-left">Client Name</th>
+                    <th className="p-3 text-left">Client Mobile</th>
+                    <th className="p-3 text-left">Current Address</th>
+                    <th className="p-3 text-left">Permanent Address</th>
                     <th className="p-3 text-left">Location</th>
-                    <th className="p-3 text-left">Date</th>
+                    <th className="p-3 text-left">Photo</th>
+                    <th className="p-3 text-left">Visit Date</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-800 bg-black text-gray-100">
                   {visitLoading ? (
                     <tr>
-                      <td colSpan={6} className="p-4 text-gray-400">
+                      <td colSpan={9} className="p-4 text-gray-400">
                         Loading…
                       </td>
                     </tr>
                   ) : visitFiltered.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="p-4 text-gray-400">
+                      <td colSpan={9} className="p-4 text-gray-400">
                         No client visits yet.
                       </td>
                     </tr>
                   ) : (
                     visitFiltered.map((v) => {
-                      const lat =
-                        v.lat ?? v.location?.lat ?? v.coords?.lat ?? null;
-                      const lon =
-                        v.lon ?? v.location?.lon ?? v.coords?.lon ?? null;
+                      const lat = v.location?.lat ?? v.lat ?? null;
+                      const lon = v.location?.lon ?? v.lon ?? null;
                       return (
                         <tr key={v._id} className="hover:bg-gray-900/60">
-                          <td className="p-3">{v.dseName}</td>
+                          <td className="p-3">{v.dseName || "—"}</td>
                           <td className="p-3">{v.dsePhone || "—"}</td>
-                          <td className="p-3 text-emerald-400">
+                          <td className="p-3 text-emerald-400 font-medium">
                             {v.clientName || "—"}
                           </td>
-                          <td className="p-3">
-                            {v.photoUrl ? (
-                              <img
-                                src={v.photoUrl}
-                                alt="visit"
-                                className="w-12 h-12 rounded-md object-cover cursor-pointer hover:opacity-80 transition"
-                                onClick={() => setPreviewUrl(v.photoUrl)}
-                              />
-                            ) : (
-                              "—"
-                            )}
+                          <td className="p-3">{v.clientMobile || "—"}</td>
+                          <td
+                            className="p-3 max-w-xs truncate"
+                            title={v.currentAddress}
+                          >
+                            {v.currentAddress || "—"}
+                          </td>
+                          <td
+                            className="p-3 max-w-xs truncate"
+                            title={v.permanentAddress}
+                          >
+                            {v.permanentAddress || "—"}
                           </td>
                           <td className="p-3">
                             {lat && lon ? (
@@ -637,6 +646,18 @@ export default function DSEReports() {
                             )}
                           </td>
                           <td className="p-3">
+                            {v.photoUrl ? (
+                              <img
+                                src={v.photoUrl}
+                                alt="visit"
+                                className="w-12 h-12 rounded-md object-cover cursor-pointer hover:opacity-80 transition"
+                                onClick={() => setPreviewUrl(v.photoUrl)}
+                              />
+                            ) : (
+                              "—"
+                            )}
+                          </td>
+                          <td className="p-3">
                             {v.createdAt
                               ? new Date(v.createdAt).toLocaleString()
                               : "—"}
@@ -649,7 +670,7 @@ export default function DSEReports() {
               </table>
             </div>
 
-            {/* Image Preview Modal */}
+            {/* 🖼️ Image Preview Modal */}
             {previewUrl && (
               <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
                 <div className="relative">
