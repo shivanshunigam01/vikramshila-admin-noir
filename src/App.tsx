@@ -28,6 +28,9 @@ import DSEReports from "./pages/DSEReports";
 import DSEReportsDse from "./pages/DSEReportsDse";
 import DSETrackDetail from "./pages/DSETrackDetail";
 import Videos from "./pages/Videos";
+import CompetitionTruckFinder from "./pages/CompetitionTruckFinder";
+import CompetitionCompare from "./pages/CompetitionCompare";
+import CompetitionProducts from "./pages/admin/CompetitionProducts";
 
 const queryClient = new QueryClient();
 
@@ -39,6 +42,11 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
+          <Route
+            path="/competition/finder"
+            element={<CompetitionTruckFinder />}
+          />
+          <Route path="/competition/compare" element={<CompetitionCompare />} />
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<Dashboard />} />
             <Route path="products" element={<Products />} />
@@ -50,10 +58,13 @@ const App = () => (
             <Route path="grievances" element={<Grievances />} />
             <Route path="videos" element={<Videos />} />
 
-
             <Route path="leads" element={<Leads />} />
 
             <Route path="products/:id" element={<ProductDetails />} />
+            <Route
+              path="competition-products"
+              element={<CompetitionProducts />}
+            />
             <Route path="banner" element={<BannerImageUpload />} />
             <Route path="dse-leads" element={<DSELeads />} />
             <Route path="dse-enquiry" element={<DSEEnquiries />} />

@@ -45,11 +45,16 @@ type NavItem =
 export const BASE_NAV_ITEMS: NavItem[] = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { name: "Products", href: "/admin/products", icon: Package },
+  {
+    name: "Competition Products",
+    href: "/admin/competition-products",
+    icon: Package,
+  },
   { name: "Schemes & Offers", href: "/admin/schemes", icon: Gift },
   { name: "Testimonials", href: "/admin/testimonials", icon: Users },
   { name: "Banner Images", href: "/admin/banner", icon: Image },
   { name: "Videos", href: "/admin/videos", icon: Video },
-  
+
   { name: "Services", href: "/admin/services", icon: Settings },
   { name: "Enquiries", href: "/admin/enquiries", icon: Mail },
   { name: "Leads", href: "/admin/leads", icon: Users },
@@ -69,6 +74,11 @@ export const BASE_NAV_ITEMS: NavItem[] = [
   {
     name: "Grievances",
     href: "/admin/grievances",
+    icon: MessageCircleQuestion,
+  },
+  {
+    name: "Competition Vehicle Compare",
+    href: "/competition/finder",
     icon: MessageCircleQuestion,
   },
 ];
