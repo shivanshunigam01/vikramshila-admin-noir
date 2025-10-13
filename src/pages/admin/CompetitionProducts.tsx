@@ -1,618 +1,344 @@
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useLocation, useNavigate } from "react-router-dom";
+import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { useToast } from "@/components/ui/use-toast";
-import {
-  Plus,
-  Search,
-  Edit,
-  Trash2,
-  Filter,
-  Package,
+  Award,
   ChevronLeft,
-  ChevronRight,
-  FileText,
-  Loader2,
+  Fuel,
+  Gauge,
+  Settings,
+  Truck,
+  Wallet,
+  Zap,
 } from "lucide-react";
-import {
-  getCompetitionProducts,
-  createCompetitionProduct,
-  updateCompetitionProduct,
-  deleteCompetitionProduct,
-} from "@/services/competitionService";
+import { competitionCompareFilter } from "@/services/competitionService";
 
-export default function CompetitionProducts() {
-  const [products, setProducts] = useState<any[]>([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("all");
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<any | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+export default function CompetitionCompare() {
+  const location = useLocation();
+  const navigate = useNavigate();
+
   const [loading, setLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
-  const { toast } = useToast();
+  const [combined, setCombined] = useState<any[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [sameBrandOnly, setSameBrandOnly] = useState(true); // ✅ toggle Tata-only vs Tata+Competitor
 
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+  // 🔹 Read filters from URL
+  const params = new URLSearchParams(location.search);
+  const filters = Object.fromEntries(params.entries());
 
-  const [formData, setFormData] = useState<any>({
-    brand: "",
-    model: "",
-    category: "",
-    description: "",
-    price: "",
-    payload: "",
-    engine: "",
-    fuelType: "",
-    gearBox: "",
-    clutchDia: "",
-    torque: "",
-    tyre: "",
-    mileage: "",
-    fuelTankCapacity: "",
-    cabinType: "",
-    warranty: "",
-    monitoringFeatures: "",
-    driverComfort: "",
-    applicationSuitability: "",
-    bodyDimensions: "",
-    image: null,
-    brochure: null,
-  });
+  // ✅ Fetch data when filters or toggle changes
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
 
-  const categories = [
-    "SCV Cargo",
-    "SCV Passenger",
-    "Pickup",
-    "LCV",
-    "ICV",
-    "MCV",
-    "Buses",
-    "Winger",
-    "Others",
+        // 🔹 Fetch comparison data (unified API)
+        const res = await competitionCompareFilter(filters);
+
+        console.log("API Response:", res); // 🧩 Debug: check structure in console
+
+        if (res?.success && res?.data) {
+          const { real = [], competitors = [] } = res.data;
+
+          // 🔸 Prepare Tata products
+          const tataProducts = real.map((p: any) => ({
+            ...p,
+            type: "Tata Product",
+            imageUrl:
+              p.images?.[0] && typeof p.images[0] === "string"
+                ? p.images[0]
+                : "/placeholder.svg",
+          }));
+
+          // 🔸 Prepare competitor products
+          const compProducts = competitors.map((p: any) => ({
+            ...p,
+            type: p.brand ? `${p.brand}` : "Competitor",
+            imageUrl:
+              p.images?.[0] && typeof p.images[0] === "string"
+                ? p.images[0]
+                : "/placeholder.svg",
+          }));
+
+          // ✅ Filter based on toggle (Tata-only or Tata+Competitors)
+          if (sameBrandOnly) {
+            if (tataProducts.length > 0) {
+              setCombined(tataProducts);
+            } else {
+              setError("No Tata products found for this filter.");
+              setCombined([]);
+            }
+          } else {
+            const merged = [...tataProducts, ...compProducts];
+            if (merged.length > 0) {
+              setCombined(merged);
+            } else {
+              setError("No comparison data found.");
+              setCombined([]);
+            }
+          }
+        } else {
+          setError("No data found for this selection.");
+          setCombined([]);
+        }
+      } catch (err) {
+        console.error("Error fetching compare data:", err);
+        setError("Error fetching comparison data.");
+        setCombined([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [location.search, sameBrandOnly]);
+
+  // 🔹 Extract number helper
+  const num = (v?: string | number) => {
+    if (v == null) return null;
+    const str = String(v)
+      .replace(/,/g, "")
+      .match(/[\d.]+/);
+    return str ? parseFloat(str[0]) : null;
+  };
+
+  // 🔹 Highlight logic for better spec
+  const highlight = (
+    label: string,
+    values: (string | number)[],
+    higherIsBetter = true
+  ) => {
+    const nums = values
+      .map(num)
+      .filter((n): n is number => typeof n === "number");
+    if (nums.length === 0) return values.map((v) => (v ? String(v) : "—"));
+    const best = higherIsBetter ? Math.max(...nums) : Math.min(...nums);
+    return values.map((v) => {
+      const n = num(v);
+      return n === best ? `🏆 ${v}` : v ?? "—";
+    });
+  };
+
+  // 🔹 Table attributes
+  const attributes = [
+    { label: "Brand / Category", key: "category" },
+    {
+      label: "Payload",
+      key: "payload",
+      icon: <Truck className="w-4 h-4 text-blue-400" />,
+    },
+    {
+      label: "Fuel Type",
+      key: "fuelType",
+      icon: <Fuel className="w-4 h-4 text-emerald-400" />,
+    },
+    {
+      label: "Engine",
+      key: "engine",
+      icon: <Settings className="w-4 h-4 text-purple-400" />,
+    },
+    {
+      label: "Torque",
+      key: "torque",
+      icon: <Gauge className="w-4 h-4 text-amber-400" />,
+    },
+    {
+      label: "Mileage",
+      key: "mileage",
+      icon: <Zap className="w-4 h-4 text-yellow-400" />,
+    },
+    {
+      label: "Price",
+      key: "price",
+      icon: <Wallet className="w-4 h-4 text-green-400" />,
+      higherIsBetter: false,
+    },
+    { label: "Cabin Type", key: "cabinType" },
   ];
 
-  useEffect(() => {
-    loadProducts();
-  }, []);
-
-  const loadProducts = async () => {
-    try {
-      setLoading(true);
-      const res = await getCompetitionProducts();
-      if (res.data.success) setProducts(res.data.data);
-    } catch (err) {
-      console.error(err);
-      toast({
-        title: "Error",
-        description: "Failed to load competition products.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const formatPrice = (price: any) => {
-    if (!price) return "-";
-    const num = Number(price);
-    return num >= 100000
-      ? `${(num / 100000).toFixed(2)} Lakh`
-      : `${num.toLocaleString()}`;
-  };
-
-  const getImageUrl = (p: any) => {
-    const img = p.images?.[0];
-    if (!img) return "/placeholder.svg";
-    if (img.startsWith("http")) return img;
-    const clean = img.replace(/\\/g, "/");
-    return `${API_URL}/${clean}`;
-  };
-
-  const handleSubmit = async (e: any) => {
-    e.preventDefault();
-    setSubmitting(true);
-    try {
-      const fd = new FormData();
-      const fieldsToSend = [
-        "brand",
-        "model",
-        "category",
-        "description",
-        "price",
-        "payload",
-        "engine",
-        "fuelType",
-        "gearBox",
-        "clutchDia",
-        "torque",
-        "tyre",
-        "mileage",
-        "fuelTankCapacity",
-        "cabinType",
-        "warranty",
-        "monitoringFeatures",
-        "driverComfort",
-        "applicationSuitability",
-        "bodyDimensions",
-      ];
-      fieldsToSend.forEach((key) => {
-        if (formData[key] !== undefined && formData[key] !== null) {
-          fd.append(key, String(formData[key]));
-        }
-      });
-      if (formData.image) fd.append("images", formData.image);
-      if (formData.brochure) fd.append("brochureFile", formData.brochure);
-
-      if (editingProduct) {
-        await updateCompetitionProduct(editingProduct._id, fd);
-        toast({
-          title: "Updated",
-          description: "Product updated successfully.",
-        });
-      } else {
-        await createCompetitionProduct(fd);
-        toast({ title: "Added", description: "Product added successfully." });
-      }
-      resetForm();
-      loadProducts();
-    } catch (err) {
-      console.error(err);
-      toast({
-        title: "Error",
-        description: "Failed to save product.",
-        variant: "destructive",
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const resetForm = () => {
-    setFormData({
-      brand: "",
-      model: "",
-      category: "",
-      description: "",
-      price: "",
-      payload: "",
-      engine: "",
-      fuelType: "",
-      gearBox: "",
-      clutchDia: "",
-      torque: "",
-      tyre: "",
-      mileage: "",
-      fuelTankCapacity: "",
-      cabinType: "",
-      warranty: "",
-      monitoringFeatures: "",
-      driverComfort: "",
-      applicationSuitability: "",
-      bodyDimensions: "",
-      image: null,
-      brochure: null,
-    });
-    setEditingProduct(null);
-    setIsAddDialogOpen(false);
-    setIsEditDialogOpen(false);
-  };
-
-  const handleDelete = async (id: string) => {
-    try {
-      await deleteCompetitionProduct(id);
-      toast({ title: "Deleted", description: "Product deleted successfully." });
-      loadProducts();
-    } catch {
-      toast({
-        title: "Error",
-        description: "Failed to delete product.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleDownloadBrochure = (brochureFile: any) => {
-    if (!brochureFile?.path) {
-      toast({
-        title: "No Brochure",
-        description: "This product has no brochure file.",
-      });
-      return;
-    }
-    const url = brochureFile.path.replace(/\\/g, "/");
-    const fullUrl = url.startsWith("http") ? url : `${API_URL}/${url}`;
-    window.open(fullUrl, "_blank");
-  };
-
-  const filteredProducts = products.filter((p) => {
-    const search = searchTerm.toLowerCase();
-    const matchesSearch =
-      p.brand?.toLowerCase().includes(search) ||
-      p.model?.toLowerCase().includes(search);
-    const matchesCategory =
-      selectedCategory === "all" || p.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
-
-  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const currentProducts = filteredProducts.slice(
-    startIndex,
-    startIndex + itemsPerPage
-  );
-
-  const truncate = (str?: string | any[], n = 40) => {
-    if (!str) return "-";
-    const text = Array.isArray(str) ? str.join(", ") : String(str);
-    return text.length > n ? text.slice(0, n) + "…" : text;
-  };
-
-  const renderForm = () => (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {[
-          "brand",
-          "model",
-          "category",
-          "payload",
-          "fuelType",
-          "engine",
-          "torque",
-          "mileage",
-          "gearBox",
-          "clutchDia",
-          "tyre",
-          "fuelTankCapacity",
-          "cabinType",
-          "warranty",
-          "price",
-        ].map((field) => (
-          <Input
-            key={field}
-            placeholder={field.charAt(0).toUpperCase() + field.slice(1)}
-            value={formData[field]}
-            onChange={(e) =>
-              setFormData({ ...formData, [field]: e.target.value })
-            }
-          />
-        ))}
-      </div>
-
-      <Input
-        placeholder="Application Suitability"
-        value={formData.applicationSuitability}
-        onChange={(e) =>
-          setFormData({ ...formData, applicationSuitability: e.target.value })
-        }
-      />
-      <Input
-        placeholder="Body Dimensions"
-        value={formData.bodyDimensions}
-        onChange={(e) =>
-          setFormData({ ...formData, bodyDimensions: e.target.value })
-        }
-      />
-      <Input
-        placeholder="Monitoring Features"
-        value={formData.monitoringFeatures}
-        onChange={(e) =>
-          setFormData({ ...formData, monitoringFeatures: e.target.value })
-        }
-      />
-      <Input
-        placeholder="Driver Comfort (0–10)"
-        value={formData.driverComfort}
-        onChange={(e) =>
-          setFormData({ ...formData, driverComfort: e.target.value })
-        }
-      />
-      <textarea
-        placeholder="Description"
-        value={formData.description}
-        onChange={(e) =>
-          setFormData({ ...formData, description: e.target.value })
-        }
-        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm bg-background"
-        rows={3}
-      />
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium mb-1">Upload Image</label>
-          <Input
-            type="file"
-            accept="image/*"
-            onChange={(e) =>
-              setFormData({ ...formData, image: e.target.files?.[0] || null })
-            }
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">
-            Upload Brochure (PDF)
-          </label>
-          <Input
-            type="file"
-            accept=".pdf"
-            onChange={(e) =>
-              setFormData({
-                ...formData,
-                brochure: e.target.files?.[0] || null,
-              })
-            }
-          />
-        </div>
-      </div>
-
-      <div className="flex gap-2 pt-4">
-        <Button type="submit" disabled={submitting}>
-          {submitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-          {editingProduct ? "Update Product" : "Add Product"}
-        </Button>
-        <Button variant="outline" onClick={resetForm}>
-          Cancel
-        </Button>
-      </div>
-    </form>
-  );
+  // ------------------ UI ------------------
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="animate-spin h-6 w-6 text-primary" />
+      <div className="bg-black text-white min-h-screen flex flex-col items-center justify-center">
+        <div className="animate-spin h-10 w-10 border-4 border-blue-500 border-t-transparent rounded-full"></div>
+        <p className="text-gray-400 mt-4">Loading comparison...</p>
+      </div>
+    );
+  }
+
+  if (error || combined.length === 0) {
+    return (
+      <div className="bg-black text-white min-h-screen flex flex-col items-center justify-center">
+        <p className="text-gray-400 mb-6">{error || "No products found."}</p>
+        <Button
+          onClick={() => navigate("/competition/finder")}
+          className="bg-blue-600 hover:bg-blue-700"
+        >
+          ← Back to Finder
+        </Button>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-3">
-            <Package className="h-8 w-8 text-primary" />
-            Competition Products
-          </h1>
-          <p className="text-muted-foreground">
-            Add and manage competitor vehicle data
-          </p>
+    <div className="bg-black min-h-screen text-white py-10 px-4">
+      <div className="max-w-7xl mx-auto">
+        {/* Header + Toggle */}
+        <div className="flex flex-col sm:flex-row items-center justify-between mb-6 gap-4">
+          <Button
+            variant="outline"
+            onClick={() => navigate("/competition/finder")}
+            className="text-white border-gray-600 hover:bg-gray-800"
+          >
+            <ChevronLeft className="w-4 h-4 mr-1" /> Back to Finder
+          </Button>
+
+          <label className="flex items-center gap-3 text-sm text-gray-300 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={sameBrandOnly}
+              onChange={(e) => setSameBrandOnly(e.target.checked)}
+              className="w-4 h-4 accent-blue-600 cursor-pointer"
+            />
+            Compare within same brand (Tata Motors only)
+          </label>
         </div>
 
-        {/* Add/Edit Dialogs */}
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-blue-600 hover:bg-blue-700 text-white gap-2">
-              <Plus className="h-4 w-4" />
-              Add Product
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader className="sticky top-0 bg-background z-10 pb-3 border-b">
-              <DialogTitle>Add Competition Product</DialogTitle>
-            </DialogHeader>
-            <div className="pr-2">{renderForm()}</div>
-          </DialogContent>
-        </Dialog>
+        <h1 className="text-3xl font-bold text-center mb-8 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+          {sameBrandOnly
+            ? "Tata Motors Product Comparison"
+            : "Tata vs Competitor Comparison"}
+        </h1>
 
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader className="sticky top-0 bg-background z-10 pb-3 border-b">
-              <DialogTitle>Edit Competition Product</DialogTitle>
-            </DialogHeader>
-            <div className="pr-2">{renderForm()}</div>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      {/* Filters */}
-      <Card>
-        <CardContent className="pt-6 flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by brand or model..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          <div className="flex gap-2">
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="px-3 py-2 rounded-md border bg-input text-sm"
+        {/* Product Cards */}
+        <div
+          className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-${combined.length} gap-6 mb-12`}
+        >
+          {combined.map((p, idx) => (
+            <Card
+              key={idx}
+              className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 hover:border-gray-500 transition-all duration-300"
             >
-              <option value="all">All Categories</option>
-              {categories.map((c) => (
-                <option key={c}>{c}</option>
-              ))}
-            </select>
-            <Button variant="outline" size="icon">
-              <Filter className="h-4 w-4" />
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            Competition Products ({filteredProducts.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {filteredProducts.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No competition products found.
-            </div>
-          ) : (
-            <>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-muted-foreground">
-                      <th className="text-left py-2 px-2">Image</th>
-                      <th className="text-left py-2 px-2">Brand</th>
-                      <th className="text-left py-2 px-2">Model</th>
-                      <th className="text-left py-2 px-2">Category</th>
-                      <th className="text-left py-2 px-2">Fuel</th>
-                      <th className="text-left py-2 px-2">Payload</th>
-                      <th className="text-left py-2 px-2">Price</th>
-                      <th className="text-left py-2 px-2">Monitoring</th>
-                      <th className="text-left py-2 px-2">Comfort</th>
-                      <th className="text-right py-2 px-2">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {currentProducts.map((p) => (
-                      <tr key={p._id} className="border-b hover:bg-muted/30">
-                        <td className="py-3 px-2">
-                          <img
-                            src={getImageUrl(p)}
-                            alt="img"
-                            className="w-12 h-12 object-cover rounded-md border"
-                            onError={(e) =>
-                              (e.currentTarget.src = "/placeholder.svg")
-                            }
-                          />
-                        </td>
-                        <td className="py-3 px-2 font-medium">{p.brand}</td>
-                        <td className="py-3 px-2">{p.model}</td>
-                        <td className="py-3 px-2">
-                          <Badge variant="secondary">{p.category}</Badge>
-                        </td>
-                        <td className="py-3 px-2">{p.fuelType}</td>
-                        <td className="py-3 px-2">{p.payload}</td>
-                        <td className="py-3 px-2 font-semibold">
-                          ₹{formatPrice(p.price)}
-                        </td>
-                        <td className="py-3 px-2">
-                          {truncate(p.monitoringFeatures, 25)}
-                        </td>
-                        <td className="py-3 px-2">{p.driverComfort || "-"}</td>
-                        <td className="py-3 px-2 text-right">
-                          <div className="flex justify-end gap-2">
-                            {p.brochureFile && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() =>
-                                  handleDownloadBrochure(p.brochureFile)
-                                }
-                              >
-                                <FileText className="h-4 w-4" />
-                              </Button>
-                            )}
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => {
-                                setEditingProduct(p);
-                                setFormData(p);
-                                setIsEditDialogOpen(true);
-                              }}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="text-red-600"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>
-                                    Delete Product
-                                  </AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Are you sure you want to delete {p.brand}{" "}
-                                    {p.model}?
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() => handleDelete(p._id)}
-                                    className="bg-red-600 hover:bg-red-700"
-                                  >
-                                    Delete
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="flex items-center justify-between mt-6">
-                  <div className="text-sm text-muted-foreground">
-                    Showing {startIndex + 1}–
-                    {Math.min(
-                      startIndex + itemsPerPage,
-                      filteredProducts.length
-                    )}{" "}
-                    of {filteredProducts.length}
+              <CardHeader className="p-0">
+                <div className="aspect-[4/3] bg-black rounded-t-lg overflow-hidden relative group">
+                  <img
+                    src={p.imageUrl}
+                    alt={p.model || p.title}
+                    className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-105"
+                    onError={(e) =>
+                      ((e.currentTarget as HTMLImageElement).src =
+                        "/placeholder.svg")
+                    }
+                  />
+                  <div
+                    className={`absolute top-3 left-3 text-xs px-2 py-1 rounded ${
+                      p.type.includes("Tata") ? "bg-blue-600" : "bg-red-600"
+                    }`}
+                  >
+                    {p.type}
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(currentPage - 1)}
-                      disabled={currentPage === 1}
-                    >
-                      <ChevronLeft className="h-4 w-4 mr-1" />
-                      Prev
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(currentPage + 1)}
-                      disabled={currentPage === totalPages}
-                    >
-                      Next
-                      <ChevronRight className="h-4 w-4 ml-1" />
-                    </Button>
+                  <div className="absolute bottom-3 right-3 bg-black/50 px-3 py-1 rounded text-sm text-white/80">
+                    {p.category}
                   </div>
                 </div>
-              )}
-            </>
-          )}
-        </CardContent>
-      </Card>
+              </CardHeader>
+
+              <CardContent className="p-4">
+                <CardTitle className="text-lg font-semibold mb-1">
+                  {p.title || p.model}
+                </CardTitle>
+                <p className="text-sm text-gray-400 line-clamp-2 mb-3">
+                  {p.description || "No description available."}
+                </p>
+                <div className="flex items-center justify-between text-sm">
+                  <div className="font-semibold text-green-400">
+                    {p.price ? `₹ ${p.price}` : "Price N/A"}
+                  </div>
+                  <div className="text-xs text-gray-400">{p.fuelType}</div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        {/* Comparison Table */}
+        <Card className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700">
+          <CardHeader>
+            <CardTitle className="text-lg text-white flex items-center gap-2">
+              <Award className="w-5 h-5 text-yellow-400" /> Key Specifications
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto rounded-lg border border-white/10">
+              <table className="w-full text-sm">
+                <thead className="bg-white/[0.08]">
+                  <tr>
+                    <th className="text-left py-3 px-4 text-xs uppercase text-gray-300">
+                      Spec
+                    </th>
+                    {combined.map((p, i) => (
+                      <th
+                        key={i}
+                        className="py-3 px-4 text-left text-sm font-semibold text-white"
+                      >
+                        {p.model || p.title}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {attributes.map(
+                    ({ label, key, icon, higherIsBetter = true }) => {
+                      const values = combined.map((p) => p[key] || "—");
+                      const highlighted = highlight(
+                        label,
+                        values,
+                        higherIsBetter
+                      );
+                      return (
+                        <tr
+                          key={label}
+                          className="border-b border-white/10 hover:bg-white/[0.04] transition-colors"
+                        >
+                          <td className="py-3 px-4 text-xs text-gray-300 flex items-center gap-2">
+                            {icon}
+                            {label}
+                          </td>
+                          {highlighted.map((v, i) => (
+                            <td
+                              key={i}
+                              className={`py-3 px-4 ${
+                                String(v).startsWith("🏆")
+                                  ? "text-emerald-400 font-semibold"
+                                  : "text-gray-100"
+                              }`}
+                            >
+                              {v}
+                            </td>
+                          ))}
+                        </tr>
+                      );
+                    }
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Bottom Button */}
+        <div className="text-center mt-12">
+          <Button
+            onClick={() => navigate("/competition/finder")}
+            className="bg-blue-600 hover:bg-blue-700 px-8 py-3"
+          >
+            Compare Another Set
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

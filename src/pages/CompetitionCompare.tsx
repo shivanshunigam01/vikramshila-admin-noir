@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,46 +12,71 @@ import {
   Wallet,
   Zap,
 } from "lucide-react";
+import { competitionCompareFilter } from "@/services/competitionService";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function CompetitionCompare() {
-  const { state } = useLocation();
+  const location = useLocation();
   const navigate = useNavigate();
-  const data = state || { real: [], competitors: [] };
 
-  // Combine both Tata and Competition products
-  const combined = [
-    ...data.real.map((p: any) => ({
-      ...p,
-      type: "Tata Product",
-      imageUrl:
-        p.images?.[0] && typeof p.images[0] === "string"
-          ? p.images[0]
-          : "/placeholder.svg",
-    })),
-    ...data.competitors.map((p: any) => ({
-      ...p,
-      type: "Competitor",
-      imageUrl:
-        p.images?.[0] && typeof p.images[0] === "string"
-          ? p.images[0]
-          : "/placeholder.svg",
-    })),
-  ].slice(0, 3);
+  const [loading, setLoading] = useState(true);
+  const [combined, setCombined] = useState<any[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [sameBrandOnly, setSameBrandOnly] = useState(true);
 
-  if (combined.length === 0)
-    return (
-      <div className="bg-black text-white min-h-screen flex flex-col items-center justify-center">
-        <p className="text-gray-400 mb-6">No matching products found.</p>
-        <Button
-          onClick={() => navigate("/competition/finder")}
-          className="bg-blue-600 hover:bg-blue-700"
-        >
-          ← Back to Finder
-        </Button>
-      </div>
-    );
+  const params = new URLSearchParams(location.search);
+  const filters = Object.fromEntries(params.entries());
 
-  // Utility: extract numeric part for comparison
+  // ✅ Fetch Data
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const res = await competitionCompareFilter(filters);
+        if (res.success && res.data) {
+          const { real = [], competitors = [] } = res.data;
+
+          const tataProducts = real.map((p: any) => ({
+            ...p,
+            type: "Tata Product",
+            imageUrl:
+              p.images?.[0] && typeof p.images[0] === "string"
+                ? p.images[0]
+                : "/placeholder.svg",
+          }));
+
+          const compProducts = competitors.map((p: any) => ({
+            ...p,
+            type: p.brand ? `${p.brand}` : "Competitor",
+            imageUrl:
+              p.images?.[0] && typeof p.images[0] === "string"
+                ? p.images[0]
+                : "/placeholder.svg",
+          }));
+
+          if (sameBrandOnly) {
+            setCombined(tataProducts);
+          } else {
+            setCombined([...tataProducts, ...compProducts]);
+          }
+        } else {
+          setError("No data found for this selection.");
+          setCombined([]);
+        }
+      } catch (err) {
+        console.error("Error fetching compare data:", err);
+        setError("Error fetching comparison data.");
+        setCombined([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [location.search, sameBrandOnly]);
+
+  // ✅ Utility
   const num = (v?: string | number) => {
     if (v == null) return null;
     const str = String(v)
@@ -59,7 +85,6 @@ export default function CompetitionCompare() {
     return str ? parseFloat(str[0]) : null;
   };
 
-  // Highlight the best value per attribute
   const highlight = (
     label: string,
     values: (string | number)[],
@@ -76,9 +101,8 @@ export default function CompetitionCompare() {
     });
   };
 
-  // Table attributes
   const attributes = [
-    { label: "Category", key: "category" },
+    { label: "Brand / Category", key: "category" },
     {
       label: "Payload",
       key: "payload",
@@ -108,16 +132,44 @@ export default function CompetitionCompare() {
       label: "Price",
       key: "price",
       icon: <Wallet className="w-4 h-4 text-green-400" />,
-      higherIsBetter: false, // lower price wins
+      higherIsBetter: false,
     },
     { label: "Cabin Type", key: "cabinType" },
   ];
 
+  // ---------------- UI ----------------
+  if (loading) {
+    return (
+      <div className="bg-black text-white min-h-screen flex flex-col items-center justify-center">
+        <div className="animate-spin h-12 w-12 border-4 border-blue-500 border-t-transparent rounded-full"></div>
+        <p className="text-gray-400 mt-6 text-lg">Fetching latest data...</p>
+      </div>
+    );
+  }
+
+  if (error || combined.length === 0) {
+    return (
+      <div className="bg-black text-white min-h-screen flex flex-col items-center justify-center">
+        <p className="text-gray-400 mb-6 text-lg">
+          {error || "No products found."}
+        </p>
+        <Button
+          onClick={() => navigate("/competition/finder")}
+          className="bg-blue-600 hover:bg-blue-700"
+        >
+          ← Back to Finder
+        </Button>
+      </div>
+    );
+  }
+
   return (
-    <div className="bg-black min-h-screen text-white py-10 px-4">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+    <div className="bg-gradient-to-br from-black via-gray-900 to-gray-950 min-h-screen text-white py-10 px-4 relative">
+      <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10 pointer-events-none" />
+
+      <div className="max-w-7xl mx-auto relative z-10">
+        {/* Header + Toggle */}
+        <div className="sticky top-0 backdrop-blur-md bg-black/40 border-b border-white/10 p-4 rounded-xl flex flex-col sm:flex-row items-center justify-between mb-8 shadow-lg">
           <Button
             variant="outline"
             onClick={() => navigate("/competition/finder")}
@@ -125,87 +177,109 @@ export default function CompetitionCompare() {
           >
             <ChevronLeft className="w-4 h-4 mr-1" /> Back to Finder
           </Button>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-            Product Comparison
-          </h1>
+
+          <label className="flex items-center gap-3 text-sm text-gray-300 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={sameBrandOnly}
+              onChange={(e) => setSameBrandOnly(e.target.checked)}
+              className="w-4 h-4 accent-blue-600 cursor-pointer"
+            />
+            Compare within same brand (Tata Motors only)
+          </label>
         </div>
 
-        {/* Product Cards */}
-        <div
-          className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-${combined.length} gap-6 mb-12`}
+        {/* Title */}
+        <motion.h1
+          className="text-4xl md:text-5xl font-extrabold text-center mb-12 bg-gradient-to-r from-blue-400 via-cyan-400 to-purple-500 bg-clip-text text-transparent"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
         >
-          {combined.map((p, idx) => (
-            <Card
-              key={idx}
-              className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 hover:border-gray-500 transition-all duration-300"
-            >
-              <CardHeader className="p-0">
-                <div className="aspect-[4/3] bg-black rounded-t-lg overflow-hidden relative group">
-                  <img
-                    src={p.imageUrl}
-                    alt={p.model || p.title}
-                    className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-105"
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).src =
-                        "/placeholder.svg";
-                    }}
-                  />
-                  <div
-                    className={`absolute top-3 left-3 text-xs px-2 py-1 rounded ${
-                      p.type === "Tata Product" ? "bg-blue-600" : "bg-red-600"
-                    }`}
-                  >
-                    {p.type}
+          {sameBrandOnly
+            ? "Tata Motors Product Comparison"
+            : "Tata Motors vs Competitor Comparison"}
+        </motion.h1>
+
+        {/* Product Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-10 mb-16">
+          <AnimatePresence>
+            {combined.map((p, idx) => (
+              <motion.div
+                key={idx}
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 30 }}
+                transition={{ duration: 0.4, delay: idx * 0.05 }}
+              >
+                <Card className="bg-white/5 backdrop-blur-md border border-white/10 hover:border-blue-500 hover:scale-[1.02] transition-all duration-300 overflow-hidden">
+                  <div className="relative">
+                    <img
+                      src={p.imageUrl}
+                      alt={p.model || p.title}
+                      className="w-full h-56 object-contain bg-black p-4 transition-transform duration-500 hover:scale-105"
+                      onError={(e) =>
+                        ((e.currentTarget as HTMLImageElement).src =
+                          "/placeholder.svg")
+                      }
+                    />
+                    <span
+                      className={`absolute top-3 left-3 text-xs px-3 py-1 rounded-full font-semibold ${
+                        p.type.includes("Tata")
+                          ? "bg-blue-600/90 text-white"
+                          : "bg-red-600/90 text-white"
+                      }`}
+                    >
+                      {p.type}
+                    </span>
                   </div>
-                  <div className="absolute bottom-3 right-3 bg-black/50 px-3 py-1 rounded text-sm text-white/80">
-                    {p.category}
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="p-4">
-                <CardTitle className="text-lg font-semibold mb-1">
-                  {p.title || p.model}
-                </CardTitle>
-                <p className="text-sm text-gray-400 line-clamp-2 mb-3">
-                  {p.description || "No description available."}
-                </p>
-                <div className="flex items-center justify-between text-sm">
-                  <div className="font-semibold text-green-400">
-                    {p.price ? `₹ ${p.price}` : "Price N/A"}
-                  </div>
-                  <div className="text-xs text-gray-400">{p.fuelType}</div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+
+                  <CardContent className="p-5">
+                    <h2 className="text-xl font-bold mb-2 truncate">
+                      {p.title || p.model}
+                    </h2>
+                    <p className="text-sm text-gray-400 line-clamp-3 mb-4">
+                      {p.description || "—"}
+                    </p>
+
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-emerald-400 font-semibold text-lg">
+                        ₹{p.price || "N/A"}
+                      </span>
+                      <span className="text-gray-400">{p.fuelType}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
+          </AnimatePresence>
         </div>
 
         {/* Comparison Table */}
-        <Card className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700">
+        <Card className="bg-white/5 backdrop-blur-md border border-white/10 shadow-xl">
           <CardHeader>
-            <CardTitle className="text-lg text-white flex items-center gap-2">
-              <Award className="w-5 h-5 text-yellow-400" />
-              Key Specifications
+            <CardTitle className="text-xl flex items-center gap-2">
+              <Award className="w-5 h-5 text-yellow-400" /> Key Specifications
             </CardTitle>
           </CardHeader>
+
           <CardContent>
-            <div className="overflow-x-auto rounded-lg border border-white/10">
-              <table className="w-full text-sm">
-                <thead className="bg-white/[0.08]">
+            <div className="overflow-x-auto rounded-lg border border-white/10 shadow-inner max-h-[70vh] overflow-y-auto">
+              <table className="w-full text-sm text-left border-collapse">
+                <thead className="bg-gradient-to-r from-gray-800/80 to-gray-900/80 text-gray-300 uppercase text-xs tracking-wider sticky top-0 backdrop-blur-sm">
                   <tr>
-                    <th className="text-left py-3 px-4 text-xs uppercase text-gray-300">
-                      Spec
-                    </th>
+                    <th className="p-3 font-semibold">Specification</th>
                     {combined.map((p, i) => (
                       <th
                         key={i}
-                        className="py-3 px-4 text-left text-sm font-semibold text-white"
+                        className="p-3 font-semibold text-center whitespace-nowrap"
                       >
                         {p.model || p.title}
+                        <div className="text-xs text-gray-400">{p.type}</div>
                       </th>
                     ))}
                   </tr>
                 </thead>
+
                 <tbody>
                   {attributes.map(
                     ({ label, key, icon, higherIsBetter = true }) => {
@@ -218,16 +292,16 @@ export default function CompetitionCompare() {
                       return (
                         <tr
                           key={label}
-                          className="border-b border-white/10 hover:bg-white/[0.04] transition-colors"
+                          className="border-b border-gray-700 hover:bg-gray-800/40 transition-colors"
                         >
-                          <td className="py-3 px-4 text-xs text-gray-300 flex items-center gap-2">
+                          <td className="p-3 text-gray-300 font-medium flex items-center gap-2">
                             {icon}
                             {label}
                           </td>
                           {highlighted.map((v, i) => (
                             <td
                               key={i}
-                              className={`py-3 px-4 ${
+                              className={`p-3 text-center ${
                                 String(v).startsWith("🏆")
                                   ? "text-emerald-400 font-semibold"
                                   : "text-gray-100"
@@ -250,7 +324,7 @@ export default function CompetitionCompare() {
         <div className="text-center mt-12">
           <Button
             onClick={() => navigate("/competition/finder")}
-            className="bg-blue-600 hover:bg-blue-700 px-8 py-3"
+            className="bg-blue-600 hover:bg-blue-700 px-8 py-3 rounded-full shadow-lg shadow-blue-500/20"
           >
             Compare Another Set
           </Button>
