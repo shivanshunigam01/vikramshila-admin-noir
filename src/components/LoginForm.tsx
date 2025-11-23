@@ -48,7 +48,6 @@ export default function LoginForm({ onLogin, onCancel }: LoginFormProps) {
 
         const checkToken = localStorage.getItem("admin_token");
         const checkUser = localStorage.getItem("admin_user");
-        console.log("[login] written values", { checkToken, checkUser });
       } catch (storageErr) {
         console.error("[login] localStorage error", storageErr);
         toast({

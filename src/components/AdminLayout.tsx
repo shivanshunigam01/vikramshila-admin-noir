@@ -68,6 +68,7 @@ export const BASE_NAV_ITEMS: NavItem[] = [
     href: "/admin/dse-reports?tab=attendance",
     icon: CalendarRange,
   },
+  { name: "Planner Reports", href: "/admin/planner-reports", icon: BarChart3 },
 
   { type: "section", label: "Other" },
   { name: "Reports", href: "/admin/reports", icon: BarChart3 },
@@ -76,16 +77,12 @@ export const BASE_NAV_ITEMS: NavItem[] = [
     href: "/admin/grievances",
     icon: MessageCircleQuestion,
   },
-  {
-    name: "Competition Vehicle Compare",
-    href: "/competition/finder",
-    icon: MessageCircleQuestion,
-  },
 ];
 
 export const DSE_NAV_ITEMS: NavItem[] = [
   { name: "My Leads", href: "/admin/dse-leads", icon: Users },
   { name: "My Enquiries", href: "/admin/dse-enquiry", icon: Mail },
+  { name: "Visit Planner", href: "/admin/dse-planner", icon: CalendarRange },
 ];
 
 type AdminUser = {
