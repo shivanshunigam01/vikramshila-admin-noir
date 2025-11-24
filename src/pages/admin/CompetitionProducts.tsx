@@ -671,6 +671,8 @@ export default function CompetitionProducts() {
     type = "file",
     productId?: string
   ) => {
+    if (!fileObj) return null;
+
     const fileUrl = getBrochureUrl(fileObj);
     if (!fileUrl) return null;
 
