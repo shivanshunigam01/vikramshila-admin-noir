@@ -495,7 +495,6 @@ export default function CompetitionProducts() {
         setEditingProduct(null);
         await fetchProducts();
       } else {
-        
         toast({
           title: "Error",
           description: data?.message || "Failed to update competition product",
@@ -666,7 +665,12 @@ export default function CompetitionProducts() {
     return null;
   };
 
-  const renderFilePreview = (fileObj: any, fileName: string, type = "file") => {
+  const renderFilePreview = (
+    fileObj,
+    fileName,
+    type = "file",
+    productId?: string
+  ) => {
     const fileUrl = getBrochureUrl(fileObj);
     if (!fileUrl) return null;
 
@@ -692,7 +696,7 @@ export default function CompetitionProducts() {
               size="sm"
               onClick={() =>
                 window.open(
-                  `${API_URL}/competition-products/${editingProduct?._id}/brochure`,
+                  `${API_URL}/competition-products/${productId}/brochure`,
                   "_blank"
                 )
               }
@@ -1151,7 +1155,8 @@ export default function CompetitionProducts() {
               renderFilePreview(
                 editingProduct.images[0],
                 "Product Image",
-                "image"
+                "image",
+                editingProduct._id
               )}
             <Input
               type="file"
@@ -1177,11 +1182,11 @@ export default function CompetitionProducts() {
               Product Brochure (PDF)
             </label>
             {isEdit &&
-              editingProduct?.brochureFile &&
               renderFilePreview(
                 editingProduct.brochureFile,
                 "Product Brochure",
-                "brochure"
+                "brochure",
+                editingProduct._id
               )}
             <Input
               type="file"
