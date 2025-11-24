@@ -495,6 +495,7 @@ export default function CompetitionProducts() {
         setEditingProduct(null);
         await fetchProducts();
       } else {
+        
         toast({
           title: "Error",
           description: data?.message || "Failed to update competition product",
