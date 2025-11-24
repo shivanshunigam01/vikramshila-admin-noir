@@ -127,28 +127,8 @@ export default function CompetitionProductDetails() {
     return `₹${formatCurrency(s)}/km`;
   };
 
-  const getBrochureUrl = (fileObj: any): string | null => {
-    if (!fileObj) return null;
-
-    if (typeof fileObj === "string") {
-      return fileObj.startsWith("http")
-        ? fileObj
-        : `${API_URL}/${fileObj.replace(/\\/g, "/")}`;
-    }
-
-    if (fileObj.url) {
-      return fileObj.url.startsWith("http")
-        ? fileObj.url
-        : `${API_URL}/${fileObj.url.replace(/\\/g, "/")}`;
-    }
-
-    if (fileObj.path) {
-      return fileObj.path.startsWith("http")
-        ? fileObj.path
-        : `${API_URL}/${fileObj.path.replace(/\\/g, "/")}`;
-    }
-
-    return null;
+  const getBrochureUrl = (product: any): string => {
+    return `${API_URL}/competition-products/${product._id}/brochure`;
   };
 
   // Helper: check meaningful content
@@ -216,7 +196,7 @@ export default function CompetitionProductDetails() {
     );
   }
 
-  const brochureUrl = getBrochureUrl(product.brochureFile);
+  const brochureUrl = `${API_URL}/competition-products/${product._id}/brochure`;
 
   return (
     <div className="min-h-screen bg-black py-6">
@@ -359,7 +339,12 @@ export default function CompetitionProductDetails() {
                   {brochureUrl && (
                     <Button
                       className="flex-1 gap-2 bg-orange-600 hover:bg-orange-700 text-white shadow-md hover:shadow-lg transition-all duration-200"
-                      onClick={() => window.open(brochureUrl, "_blank")}
+                      onClick={() =>
+                        window.open(
+                          `${API_URL}/competition-products/${product._id}/brochure`,
+                          "_blank"
+                        )
+                      }
                     >
                       <FileText className="h-4 w-4" />
                       Download Brochure

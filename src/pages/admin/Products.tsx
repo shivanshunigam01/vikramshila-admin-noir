@@ -685,33 +685,8 @@ export default function Products() {
     );
   };
 
-  const getBrochureUrl = (fileObj: any): string | null => {
-    if (!fileObj) return null;
-
-    // If it's already a string URL
-    if (typeof fileObj === "string") {
-      return fileObj.startsWith("http") ? fileObj : `${API_URL}/${fileObj}`;
-    }
-
-    // If it's a File object (user just uploaded it)
-    if (typeof File !== "undefined" && fileObj instanceof File) {
-      return URL.createObjectURL(fileObj);
-    }
-
-    // If backend returned object with path or url
-    if (fileObj.url) {
-      return fileObj.url.startsWith("http")
-        ? fileObj.url
-        : `${API_URL}/${fileObj.url}`;
-    }
-    if (fileObj.path) {
-      const cleanPath = fileObj.path.replace(/\\/g, "/");
-      return cleanPath.startsWith("http")
-        ? cleanPath
-        : `${API_URL}/${cleanPath}`;
-    }
-
-    return null;
+  const getBrochureUrl = (product: any): string => {
+    return `${API_URL}/products/${product._id}/brochure`;
   };
 
   const renderFilePreview = (fileObj: any, fileName: string, type = "file") => {
@@ -1891,7 +1866,12 @@ export default function Products() {
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8"
-                                onClick={() => handleDownloadBrochure(product)}
+                                onClick={() =>
+                                  window.open(
+                                    `${API_URL}/products/${product._id}/brochure`,
+                                    "_blank"
+                                  )
+                                }
                                 disabled={!!downloadingById[product._id]}
                               >
                                 {downloadingById[product._id] ? (

@@ -62,7 +62,10 @@ export default function ProductDetails() {
 
   const formatPrice = (price: any) => {
     if (!price) return "N/A";
-    if (typeof price === "string" && (price.includes("Lakh") || price.includes("Crore"))) {
+    if (
+      typeof price === "string" &&
+      (price.includes("Lakh") || price.includes("Crore"))
+    ) {
       return price;
     }
     const numPrice = parseFloat(price.toString().replace(/[^\d.]/g, ""));
@@ -78,7 +81,9 @@ export default function ProductDetails() {
     return Array.from({ length: 5 }, (_, i) => (
       <Star
         key={i}
-        className={`h-4 w-4 ${i < numRating ? "text-yellow-400 fill-yellow-400" : "text-gray-600"}`}
+        className={`h-4 w-4 ${
+          i < numRating ? "text-yellow-400 fill-yellow-400" : "text-gray-600"
+        }`}
       />
     ));
   };
@@ -167,7 +172,9 @@ export default function ProductDetails() {
       <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="text-center py-12">
           <Package className="h-16 w-16 text-gray-600 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold mb-2 text-white">Product not found</h3>
+          <h3 className="text-xl font-semibold mb-2 text-white">
+            Product not found
+          </h3>
           <p className="text-gray-400 mb-6">
             The requested product could not be found or may have been removed.
           </p>
@@ -184,7 +191,7 @@ export default function ProductDetails() {
     );
   }
 
-  const brochureUrl = getBrochureUrl(product.brochureFile);
+  const brochureUrl = `${API_URL}/products/${product._id}/brochure`;
 
   return (
     <div className="min-h-screen bg-black py-6">
@@ -207,7 +214,9 @@ export default function ProductDetails() {
               <CardContent className="p-0">
                 <div className="aspect-square bg-gradient-to-br from-gray-800 to-gray-900 relative overflow-hidden">
                   <img
-                    src={getImageUrl(product.images?.[selectedImage] || product.images?.[0])}
+                    src={getImageUrl(
+                      product.images?.[selectedImage] || product.images?.[0]
+                    )}
                     alt={product.title}
                     className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
                   />
@@ -325,7 +334,12 @@ export default function ProductDetails() {
                   {brochureUrl && (
                     <Button
                       className="flex-1 gap-2 bg-orange-600 hover:bg-orange-700 text-white shadow-md hover:shadow-lg transition-all duration-200"
-                      onClick={() => window.open(brochureUrl, "_blank")}
+                      onClick={() =>
+                        window.open(
+                          `${API_URL}/products/${product._id}/brochure`,
+                          "_blank"
+                        )
+                      }
                     >
                       <FileText className="h-4 w-4" />
                       Download Brochure
@@ -574,7 +588,9 @@ export default function ProductDetails() {
 
                 {product.deckLength &&
                   product.deckLength.length > 0 &&
-                  product.deckLength.some((length: any) => hasContent(length)) && (
+                  product.deckLength.some((length: any) =>
+                    hasContent(length)
+                  ) && (
                     <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
                       <span className="text-sm font-semibold text-gray-400 block mb-2">
                         Available Deck Lengths
@@ -583,7 +599,10 @@ export default function ProductDetails() {
                         {product.deckLength
                           .filter((length: any) => hasContent(length))
                           .map((length: any, index: number) => (
-                            <div key={index} className="flex items-center gap-2">
+                            <div
+                              key={index}
+                              className="flex items-center gap-2"
+                            >
                               <div className="w-2 h-2 rounded-full bg-orange-500" />
                               <span className="text-sm font-medium text-white">
                                 {length} mm
@@ -597,7 +616,8 @@ export default function ProductDetails() {
             </div>
 
             {/* NEW: Driver Comfort & Monitoring */}
-            {(hasContent(product.driverComfort) || monitoringList.length > 0) && (
+            {(hasContent(product.driverComfort) ||
+              monitoringList.length > 0) && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8 pt-8 border-t border-gray-700">
                 {hasContent(product.driverComfort) && (
                   <div className="bg-rose-900/30 p-5 rounded-lg border border-rose-800/50">
@@ -610,7 +630,9 @@ export default function ProductDetails() {
                         {formatComfort(product.driverComfort)}
                       </span>
                       {/* Progress bar */}
-                      {Number(String(product.driverComfort).replace(/[^\d.]/g, "")) >= 0 && (
+                      {Number(
+                        String(product.driverComfort).replace(/[^\d.]/g, "")
+                      ) >= 0 && (
                         <div className="flex-1 h-2 bg-gray-800 rounded-full overflow-hidden">
                           <div
                             className="h-2 bg-rose-500"
@@ -619,7 +641,13 @@ export default function ProductDetails() {
                                 100,
                                 Math.max(
                                   0,
-                                  (Number(String(product.driverComfort).replace(/[^\d.]/g, "")) / 10) *
+                                  (Number(
+                                    String(product.driverComfort).replace(
+                                      /[^\d.]/g,
+                                      ""
+                                    )
+                                  ) /
+                                    10) *
                                     100
                                 )
                               )}%`,
@@ -629,7 +657,8 @@ export default function ProductDetails() {
                       )}
                     </div>
                     <p className="text-xs text-rose-200/80 mt-2">
-                      Higher score indicates better in-cabin comfort (AC, power steering, seating ergonomics, etc.).
+                      Higher score indicates better in-cabin comfort (AC, power
+                      steering, seating ergonomics, etc.).
                     </p>
                   </div>
                 )}
@@ -651,7 +680,8 @@ export default function ProductDetails() {
                       ))}
                     </div>
                     <p className="text-xs text-cyan-200/80 mt-2">
-                      Examples: FleetEdge, driver monitoring, telematics, geo-fencing, live fuel tracking.
+                      Examples: FleetEdge, driver monitoring, telematics,
+                      geo-fencing, live fuel tracking.
                     </p>
                   </div>
                 )}
@@ -666,11 +696,14 @@ export default function ProductDetails() {
                     <Shield className="h-5 w-5" />
                     Warranty
                   </h4>
-                  <p className="text-sm font-medium text-blue-300">{product.warranty}</p>
+                  <p className="text-sm font-medium text-blue-300">
+                    {product.warranty}
+                  </p>
                 </div>
               )}
 
-              {(hasContent(product.tyresCost) || hasContent(product.freightRate)) && (
+              {(hasContent(product.tyresCost) ||
+                hasContent(product.freightRate)) && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
                   {hasContent(product.tyresCost) && (
                     <div className="bg-gray-800/50 p-5 rounded-lg border border-gray-700">
@@ -678,7 +711,9 @@ export default function ProductDetails() {
                         <Wrench className="h-5 w-5 text-orange-500" />
                         Tyres Cost (₹ per set)
                       </h4>
-                      <p className="text-sm font-medium text-white">₹{formatCurrency(product.tyresCost)}</p>
+                      <p className="text-sm font-medium text-white">
+                        ₹{formatCurrency(product.tyresCost)}
+                      </p>
                     </div>
                   )}
 
@@ -688,7 +723,9 @@ export default function ProductDetails() {
                         <Truck className="h-5 w-5 text-orange-500" />
                         Freight Rate (per ton/km)
                       </h4>
-                      <p className="text-sm font-medium text-white">{formatPerKm(product.freightRate)}</p>
+                      <p className="text-sm font-medium text-white">
+                        {formatPerKm(product.freightRate)}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -700,7 +737,9 @@ export default function ProductDetails() {
                     <Target className="h-5 w-5" />
                     Application Suitability
                   </h4>
-                  <p className="text-sm font-medium text-green-300">{product.applicationSuitability}</p>
+                  <p className="text-sm font-medium text-green-300">
+                    {product.applicationSuitability}
+                  </p>
                 </div>
               )}
             </div>
@@ -771,7 +810,9 @@ export default function ProductDetails() {
                         </div>
                         <div>
                           <div className="font-semibold text-white text-base">
-                            {hasContent(review.customerName) ? review.customerName : "Anonymous Customer"}
+                            {hasContent(review.customerName)
+                              ? review.customerName
+                              : "Anonymous Customer"}
                           </div>
                           {hasContent(review.customerLocation) && (
                             <div className="flex items-center gap-1 text-sm text-gray-400 mt-1">
@@ -790,10 +831,19 @@ export default function ProductDetails() {
                           </span>
                         </div>
                         {review.type && (
-                          <Badge variant="outline" className="text-xs bg-gray-800 border-gray-600 text-gray-300">
-                            {review.type === "video" && <Video className="h-3 w-3 mr-1" />}
-                            {review.type === "photo" && <Package className="h-3 w-3 mr-1" />}
-                            {review.type === "text" && <MessageSquare className="h-3 w-3 mr-1" />}
+                          <Badge
+                            variant="outline"
+                            className="text-xs bg-gray-800 border-gray-600 text-gray-300"
+                          >
+                            {review.type === "video" && (
+                              <Video className="h-3 w-3 mr-1" />
+                            )}
+                            {review.type === "photo" && (
+                              <Package className="h-3 w-3 mr-1" />
+                            )}
+                            {review.type === "text" && (
+                              <MessageSquare className="h-3 w-3 mr-1" />
+                            )}
                             {review.type}
                           </Badge>
                         )}
@@ -822,7 +872,10 @@ export default function ProductDetails() {
                           </div>
                         ) : review.type === "video" ? (
                           <div className="max-w-md">
-                            <video controls className="w-full h-48 object-cover rounded-lg border border-gray-700 bg-gray-800">
+                            <video
+                              controls
+                              className="w-full h-48 object-cover rounded-lg border border-gray-700 bg-gray-800"
+                            >
                               <source src={review.file} type="video/mp4" />
                               Your browser does not support the video tag.
                             </video>
@@ -831,13 +884,14 @@ export default function ProductDetails() {
                       </div>
                     )}
 
-                    {!hasContent(review.content) && !hasContent(review.file) && (
-                      <div className="ml-16">
-                        <div className="text-gray-500 text-sm italic bg-gray-800/20 p-3 rounded-lg border border-gray-700/50">
-                          No review content provided
+                    {!hasContent(review.content) &&
+                      !hasContent(review.file) && (
+                        <div className="ml-16">
+                          <div className="text-gray-500 text-sm italic bg-gray-800/20 p-3 rounded-lg border border-gray-700/50">
+                            No review content provided
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
                   </div>
                 ))}
               </div>
@@ -868,7 +922,9 @@ export default function ProductDetails() {
                         </div>
                         <div>
                           <div className="font-semibold text-blue-200 text-base">
-                            {hasContent(testimonial.customerName) ? testimonial.customerName : "Anonymous Customer"}
+                            {hasContent(testimonial.customerName)
+                              ? testimonial.customerName
+                              : "Anonymous Customer"}
                           </div>
                           <div className="space-y-1 mt-1">
                             {hasContent(testimonial.customerDesignation) && (
@@ -888,10 +944,19 @@ export default function ProductDetails() {
                       </div>
 
                       {testimonial.type && (
-                        <Badge variant="outline" className="text-xs border-blue-600 text-blue-400 bg-blue-900/50">
-                          {testimonial.type === "video" && <Video className="h-3 w-3 mr-1" />}
-                          {testimonial.type === "photo" && <Package className="h-3 w-3 mr-1" />}
-                          {testimonial.type === "text" && <MessageSquare className="h-3 w-3 mr-1" />}
+                        <Badge
+                          variant="outline"
+                          className="text-xs border-blue-600 text-blue-400 bg-blue-900/50"
+                        >
+                          {testimonial.type === "video" && (
+                            <Video className="h-3 w-3 mr-1" />
+                          )}
+                          {testimonial.type === "photo" && (
+                            <Package className="h-3 w-3 mr-1" />
+                          )}
+                          {testimonial.type === "text" && (
+                            <MessageSquare className="h-3 w-3 mr-1" />
+                          )}
                           {testimonial.type}
                         </Badge>
                       )}
@@ -913,12 +978,17 @@ export default function ProductDetails() {
                               src={testimonial.file}
                               alt="Customer testimonial"
                               className="w-full h-48 object-cover rounded-lg border border-blue-700 hover:opacity-90 transition-opacity cursor-pointer"
-                              onClick={() => window.open(testimonial.file, "_blank")}
+                              onClick={() =>
+                                window.open(testimonial.file, "_blank")
+                              }
                             />
                           </div>
                         ) : testimonial.type === "video" ? (
                           <div className="max-w-md">
-                            <video controls className="w-full h-64 object-cover rounded-lg border border-blue-700 bg-gray-800">
+                            <video
+                              controls
+                              className="w-full h-64 object-cover rounded-lg border border-blue-700 bg-gray-800"
+                            >
                               <source src={testimonial.file} type="video/mp4" />
                               Your browser does not support the video tag.
                             </video>
@@ -927,13 +997,14 @@ export default function ProductDetails() {
                       </div>
                     )}
 
-                    {!hasContent(testimonial.content) && !hasContent(testimonial.file) && (
-                      <div className="ml-16">
-                        <div className="text-gray-500 text-sm italic bg-gray-800/20 p-3 rounded-lg border border-gray-700/50">
-                          No testimonial content provided
+                    {!hasContent(testimonial.content) &&
+                      !hasContent(testimonial.file) && (
+                        <div className="ml-16">
+                          <div className="text-gray-500 text-sm italic bg-gray-800/20 p-3 rounded-lg border border-gray-700/50">
+                            No testimonial content provided
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
                   </div>
                 ))}
               </div>

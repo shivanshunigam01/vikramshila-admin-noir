@@ -689,7 +689,12 @@ export default function CompetitionProducts() {
               type="button"
               variant="ghost"
               size="sm"
-              onClick={() => window.open(fileUrl, "_blank")}
+              onClick={() =>
+                window.open(
+                  `${API_URL}/competition-products/${product._id}/brochure`,
+                  "_blank"
+                )
+              }
               className="text-gray-300 hover:text-white hover:bg-gray-700"
             >
               <ExternalLink className="h-4 w-4" />
