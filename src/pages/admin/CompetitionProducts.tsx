@@ -691,7 +691,7 @@ export default function CompetitionProducts() {
               size="sm"
               onClick={() =>
                 window.open(
-                  `${API_URL}/competition-products/${product._id}/brochure`,
+                  `${API_URL}/competition-products/${editingProduct?._id}/brochure`,
                   "_blank"
                 )
               }
