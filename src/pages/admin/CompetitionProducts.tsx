@@ -638,49 +638,18 @@ export default function CompetitionProducts() {
       </div>
     );
   };
-
-  const getBrochureUrl = (fileObj: any): string | null => {
-    if (!fileObj) return null;
-
-    if (typeof fileObj === "string") {
-      return fileObj.startsWith("http") ? fileObj : `${API_URL}/${fileObj}`;
-    }
-
-    if (typeof File !== "undefined" && fileObj instanceof File) {
-      return URL.createObjectURL(fileObj);
-    }
-
-    if (fileObj.url) {
-      return fileObj.url.startsWith("http")
-        ? fileObj.url
-        : `${API_URL}/${fileObj.url}`;
-    }
-    if (fileObj.path) {
-      const cleanPath = fileObj.path.replace(/\\/g, "/");
-      return cleanPath.startsWith("http")
-        ? cleanPath
-        : `${API_URL}/${cleanPath}`;
-    }
-
-    return null;
-  };
-
   const renderFilePreview = (
-    fileObj,
-    fileName,
-    type = "file",
-    productId?: string
+    fileObj: any,
+    fileName: string,
+    type: string,
+    productId: string
   ) => {
-    if (!fileObj) return null;
+    // Protect against null / undefined
+    if (!fileObj || !productId) return null;
 
-    const fileUrl = getBrochureUrl(fileObj);
-    if (!fileUrl) return null;
-
-    const getFileName = (url: string) => {
-      if (!url) return "File";
-      const parts = url.split("/");
-      return parts[parts.length - 1] || "File";
-    };
+    // Extract display name
+    const displayName =
+      fileObj?.originalName || fileObj?.filename || "Brochure";
 
     return (
       <div className="mt-2 p-3 bg-gray-900 rounded-lg border border-gray-700">
@@ -688,25 +657,24 @@ export default function CompetitionProducts() {
           <div className="flex items-center gap-2">
             <FileText className="h-4 w-4 text-blue-400" />
             <span className="text-sm font-medium text-white">
-              Current {type}: {fileName || getFileName(fileUrl)}
+              Current {type}: {displayName}
             </span>
           </div>
-          <div className="flex gap-1">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() =>
-                window.open(
-                  `${API_URL}/competition-products/${productId}/brochure`,
-                  "_blank"
-                )
-              }
-              className="text-gray-300 hover:text-white hover:bg-gray-700"
-            >
-              <ExternalLink className="h-4 w-4" />
-            </Button>
-          </div>
+
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() =>
+              window.open(
+                `${API_URL}/competition-products/${productId}/brochure`,
+                "_blank"
+              )
+            }
+            className="text-gray-300 hover:text-white hover:bg-gray-700"
+          >
+            <ExternalLink className="h-4 w-4" />
+          </Button>
         </div>
       </div>
     );
@@ -1155,10 +1123,10 @@ export default function CompetitionProducts() {
             {isEdit &&
               editingProduct?.images?.length > 0 &&
               renderFilePreview(
-                editingProduct.images[0],
+                editingProduct?.images?.[0] || null,
                 "Product Image",
                 "image",
-                editingProduct._id
+                editingProduct?._id || null
               )}
             <Input
               type="file"
@@ -1185,10 +1153,10 @@ export default function CompetitionProducts() {
             </label>
             {isEdit &&
               renderFilePreview(
-                editingProduct.brochureFile,
+                editingProduct?.brochureFile || null,
                 "Product Brochure",
                 "brochure",
-                editingProduct._id
+                editingProduct?._id || null
               )}
             <Input
               type="file"
