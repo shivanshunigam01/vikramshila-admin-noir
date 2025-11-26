@@ -37,3 +37,7 @@ export const getPlannerReports = (params?: any) =>
     ...authHeader(),
     params,
   });
+
+// ---------------- FOLLOW-UP NOTE -----------------
+export const addFollowUpNote = (id: string, note: string) =>
+  axios.patch(`${API_URL}/planner/${id}/follow-up`, { note }, authHeader());

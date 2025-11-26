@@ -4,7 +4,12 @@ import axiosInstance from "@/api/axiosInstance";
 const API_URL = import.meta.env.VITE_API_URL as string;
 
 const authHeader = () => {
-  const token = localStorage.getItem("admin_token");
+   const token =
+    localStorage.getItem("admin_token") ||
+    localStorage.getItem("dse_token") ||
+    localStorage.getItem("token") ||
+    localStorage.getItem("auth_token");
+
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 

@@ -20,12 +20,14 @@ import {
   Clock,
   User,
   ChevronDown,
+  MessageSquarePlus,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import {
   createPlan,
   updatePlanStatus,
   getPlanByDSE,
+  addFollowUpNote,
 } from "@/services/plannerService";
 
 export default function DSEPlanner() {
@@ -44,6 +46,11 @@ export default function DSEPlanner() {
     purpose: "",
     notes: "",
   });
+
+  const [followUpNote, setFollowUpNote] = useState("");
+  const [selectedPlanForNote, setSelectedPlanForNote] = useState<string | null>(
+    null
+  );
 
   const { toast } = useToast();
 
@@ -124,6 +131,38 @@ export default function DSEPlanner() {
     }
   };
 
+  const handleAddFollowUpNote = async (planId: string) => {
+    if (!followUpNote.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a follow-up note",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await addFollowUpNote(planId, followUpNote);
+
+      toast({
+        title: "Success",
+        description: "Follow-up note added successfully!",
+      });
+
+      setFollowUpNote("");
+      setSelectedPlanForNote(null);
+
+      await loadPlans();
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description:
+          err?.response?.data?.message || "Failed to add follow-up note",
+        variant: "destructive",
+      });
+    }
+  };
+
   const filteredPlans = plans.filter(
     (p) =>
       new Date(p.visitDate).toDateString() ===
@@ -154,7 +193,7 @@ export default function DSEPlanner() {
         <Card className="bg-slate-950 border-slate-800 shadow-lg sticky top-4">
           <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-t-lg py-3 px-4">
             <CardTitle className="flex items-center gap-2 text-base">
-              <CalendarDays className="h-4 w-4" />
+              <CalendarDays className="h-4 w-4 text-white" />
               Calendar
             </CardTitle>
           </CardHeader>
@@ -163,7 +202,11 @@ export default function DSEPlanner() {
               mode="single"
               selected={selectedDate}
               onSelect={setSelectedDate}
-              className="rounded-md"
+              className="rounded-md border-slate-800"
+              classNames={{
+                day_selected: "bg-blue-600 text-white hover:bg-blue-700",
+                day_today: "bg-slate-800 text-white",
+              }}
             />
 
             {/* Stats */}
@@ -367,7 +410,7 @@ export default function DSEPlanner() {
                                 {p.location}
                               </p>
                               <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
-                                <Clock className="h-3 w-3" />
+                                <Clock className="h-3 w-3 text-blue-400" />
                                 {p.visitTime}
                               </p>
 
@@ -394,6 +437,78 @@ export default function DSEPlanner() {
                                       </p>
                                     </div>
                                   )}
+
+                                  {/* Follow-up Notes Section */}
+                                  <div className="mt-2 pt-2 border-t border-slate-800">
+                                    <p className="text-xs text-slate-400 mb-1.5 font-semibold flex items-center gap-1">
+                                      <MessageSquarePlus className="h-3 w-3" />
+                                      Follow-up Notes:
+                                    </p>
+
+                                    {p.followUpNotes &&
+                                      p.followUpNotes.length > 0 && (
+                                        <div className="space-y-2 mb-2 max-h-32 overflow-y-auto">
+                                          {p.followUpNotes.map(
+                                            (fNote: any, idx: number) => (
+                                              <div
+                                                key={idx}
+                                                className="bg-slate-900 p-2 rounded text-xs border border-slate-800"
+                                              >
+                                                <p className="text-slate-300">
+                                                  {fNote.note}
+                                                </p>
+                                                <p className="text-slate-500 text-[10px] mt-1">
+                                                  {new Date(
+                                                    fNote.timestamp
+                                                  ).toLocaleString("en-IN", {
+                                                    day: "2-digit",
+                                                    month: "short",
+                                                    year: "numeric",
+                                                    hour: "2-digit",
+                                                    minute: "2-digit",
+                                                  })}
+                                                </p>
+                                              </div>
+                                            )
+                                          )}
+                                        </div>
+                                      )}
+
+                                    <div className="flex gap-1.5">
+                                      <Input
+                                        placeholder="Add follow-up note..."
+                                        value={
+                                          selectedPlanForNote === p._id
+                                            ? followUpNote
+                                            : ""
+                                        }
+                                        onClick={(e) => e.stopPropagation()}
+                                        onChange={(e) => {
+                                          e.stopPropagation();
+                                          setSelectedPlanForNote(p._id);
+                                          setFollowUpNote(e.target.value);
+                                        }}
+                                        onKeyDown={(e) => {
+                                          e.stopPropagation();
+                                          if (e.key === "Enter") {
+                                            e.preventDefault();
+                                            handleAddFollowUpNote(p._id);
+                                          }
+                                        }}
+                                        className="border-slate-700 bg-slate-900 text-white placeholder-slate-500 text-xs h-7"
+                                      />
+                                      <Button
+                                        size="sm"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleAddFollowUpNote(p._id);
+                                        }}
+                                        className="bg-blue-600 hover:bg-blue-700 h-7 px-2 text-xs"
+                                      >
+                                        Add
+                                      </Button>
+                                    </div>
+                                  </div>
                                 </div>
                               )}
                             </div>
@@ -452,7 +567,7 @@ export default function DSEPlanner() {
                                 {p.location}
                               </p>
                               <p className="text-xs text-slate-600 flex items-center gap-1 mt-1">
-                                <Clock className="h-3 w-3" />
+                                <Clock className="h-3 w-3 text-green-400" />
                                 {p.visitTime}
                               </p>
 
@@ -479,6 +594,42 @@ export default function DSEPlanner() {
                                       </p>
                                     </div>
                                   )}
+
+                                  {/* Follow-up Notes Section */}
+                                  {p.followUpNotes &&
+                                    p.followUpNotes.length > 0 && (
+                                      <div className="mt-2 pt-2 border-t border-slate-700">
+                                        <p className="text-xs text-slate-500 mb-1.5 font-semibold flex items-center gap-1">
+                                          <MessageSquarePlus className="h-3 w-3" />
+                                          Follow-up Notes:
+                                        </p>
+                                        <div className="space-y-2 max-h-32 overflow-y-auto">
+                                          {p.followUpNotes.map(
+                                            (fNote: any, idx: number) => (
+                                              <div
+                                                key={idx}
+                                                className="bg-slate-800 p-2 rounded text-xs border border-slate-700"
+                                              >
+                                                <p className="text-slate-400">
+                                                  {fNote.note}
+                                                </p>
+                                                <p className="text-slate-600 text-[10px] mt-1">
+                                                  {new Date(
+                                                    fNote.timestamp
+                                                  ).toLocaleString("en-IN", {
+                                                    day: "2-digit",
+                                                    month: "short",
+                                                    year: "numeric",
+                                                    hour: "2-digit",
+                                                    minute: "2-digit",
+                                                  })}
+                                                </p>
+                                              </div>
+                                            )
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
                                 </div>
                               )}
                             </div>
