@@ -50,7 +50,7 @@ export const downloadBrochureService = async (id: string) => {
   try {
     const res = await axiosInstance.get(
       `${API_URL}/products/${id}/download-brochure`,
-      { responseType: "blob" } // important for file downloads
+      { responseType: "blob" } // impoasdrtant for file downloads
     );
     return {
       data: res.data,
