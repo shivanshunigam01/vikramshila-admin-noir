@@ -46,12 +46,23 @@ function humanSince(ts: string) {
   return rh ? `${d}d ${rh}h ago` : `${d}d ago`;
 }
 
-function statusOf(provider?: string, ts?: string) {
+function statusOf(
+  provider?: string,
+  ts?: string,
+  isOnline?: boolean,
+  isZeroLocation?: boolean
+) {
+  if (isZeroLocation)
+    return {
+      label: "Offline – Last recorded location",
+      color: "#6b7280", // gray
+    };
+
   if (provider === "manual_offline")
     return { label: "Stopped manually", color: "#ef4444" };
-  const m = ts ? minutesDiff(ts) : 999;
-  if (m <= 5) return { label: "Online", color: "#22c55e" };
-  if (m <= 30) return { label: "Recently Active", color: "#f59e0b" };
+
+  if (isOnline === true) return { label: "Online", color: "#22c55e" };
+
   return { label: "Inactive", color: "#ef4444" };
 }
 
@@ -234,7 +245,12 @@ export default function DSEMapAll() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return (points || []).filter((p) => {
-      const st = statusOf(p.provider, p.ts).label;
+      const st = statusOf(
+        p.provider,
+        p.ts,
+        p.isOnline,
+        (p as any).isZeroLocation
+      ).label;
       const byName =
         !q ||
         p.dseName.toLowerCase().includes(q) ||
@@ -249,7 +265,12 @@ export default function DSEMapAll() {
     });
   }, [points, query, onlyStatus]);
 
-  const spread = useMemo(() => spreadClosePoints(filtered, 30), [filtered]);
+  const spread = useMemo(() => {
+    const validForMap = filtered.filter(
+      (p) => !(Number(p.lat) === 0 && Number(p.lon) === 0)
+    );
+    return spreadClosePoints(validForMap, 30);
+  }, [filtered]);
   const bounds = useMemo(() => {
     if (!spread.length) return null;
     return L.latLngBounds(
@@ -266,13 +287,19 @@ export default function DSEMapAll() {
             <h1 className="text-white text-2xl font-bold">DSE Live Map</h1>
             <p className="text-gray-400 text-sm">
               Showing latest location of{" "}
-              <span className="text-white font-semibold">{spread.length}</span>{" "}
+              <span className="text-white font-semibold">
+                {filtered.length}
+              </span>{" "}
               DSE{spread.length !== 1 ? "s" : ""}.
             </p>
             <div className="mt-2 flex items-center gap-4 text-sm">
               <Legend color="#22c55e" label="Online ≤ 5m" />
               <Legend color="#f59e0b" label="Recently Active ≤ 30m" />
               <Legend color="#ef4444" label="Inactive / Stopped manually" />
+              <Legend
+                color="#6b7280"
+                label="Offline (No GPS – Hidden from Map)"
+              />
             </div>
           </div>
 
@@ -354,7 +381,13 @@ export default function DSEMapAll() {
             />
 
             {spread.map((p) => {
-              const st = statusOf(p.provider, p.ts);
+              const st = statusOf(
+                p.provider,
+                p.ts,
+                p.isOnline,
+                (p as any).isZeroLocation
+              );
+
               const since = p.lastSeenAgo || humanSince(p.ts);
               const init = initials(p.dseName);
               return (
@@ -363,7 +396,12 @@ export default function DSEMapAll() {
                   position={[p.dispLat, p.dispLon]}
                   icon={pinIcon(st.color, (p as any).dsePhotoUrl)}
                 >
-                  <Tooltip direction="top" offset={[0, -36]} opacity={1} permanent>
+                  <Tooltip
+                    direction="top"
+                    offset={[0, -36]}
+                    opacity={1}
+                    permanent
+                  >
                     <div className="text-xs font-semibold px-2 py-1 rounded bg-white shadow">
                       {p.dseName}
                     </div>
@@ -411,14 +449,20 @@ export default function DSEMapAll() {
                         >
                           View detailed page →
                         </Link>
-                        <a
-                          className="text-emerald-600 underline"
-                          href={`https://www.google.com/maps?q=${p.lat},${p.lon}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          Open in Google Maps
-                        </a>
+                        {Number(p.lat) !== 0 && Number(p.lon) !== 0 ? (
+                          <a
+                            className="text-emerald-600 underline"
+                            href={`https://www.google.com/maps?q=${p.lat},${p.lon}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            Open in Google Maps
+                          </a>
+                        ) : (
+                          <span className="text-gray-400 italic">
+                            No live GPS – showing last location only
+                          </span>
+                        )}
                         <button
                           onClick={() =>
                             navigator.clipboard.writeText(`${p.lat}, ${p.lon}`)
