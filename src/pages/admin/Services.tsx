@@ -5,38 +5,30 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 
 import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Textarea } from "@/components/ui/textarea";
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
+
 import { useForm } from "react-hook-form";
 import { toast } from "@/hooks/use-toast";
+
 import {
-  Plus,
   Search,
   Edit,
   Trash2,
@@ -44,421 +36,315 @@ import {
   Settings,
   Loader2,
   CheckCircle,
+  Calendar,
+  Clock,
+  Phone,
+  Mail,
+  FileText,
 } from "lucide-react";
-
 import {
-  getServices,
-  getServiceById,
-  createService,
-  updateService,
-  deleteService,
-} from "@/services/serviceServices";
+  deleteServiceBooking,
+  getServiceBookings,
+  updateServiceBooking,
+} from "@/services/serviceBookingServices";
 
 export default function Services() {
-  const [services, setServices] = useState<any[]>([]);
+  const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingService, setEditingService] = useState<any>(null);
-  const [viewingService, setViewingService] = useState<any>(null);
+  const [selectedItem, setSelectedItem] = useState<any>(null);
 
-  const form = useForm({
-    defaultValues: {
-      title: "",
-      description: "",
-      icon: null,
-      status: "active",
-    },
-  });
+  const form = useForm({ defaultValues: { status: "" } });
 
-  // Fetch services
-  const fetchServices = async () => {
+  // Fetch bookings
+  const load = async () => {
     setLoading(true);
     try {
-      const res = await getServices();
-      setServices(res?.data || []);
-    } catch (error: any) {
+      const res = await getServiceBookings();
+      setItems(res?.data || []);
+    } catch (e: any) {
       toast({
-        title: "Error",
-        description: error.message || "Failed to fetch services",
+        title: "Error loading",
+        description: e.message || "Failed to load service bookings",
         variant: "destructive",
       });
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
   };
 
   useEffect(() => {
-    fetchServices();
+    load();
   }, []);
 
-  // Handle Add / Update
-  const handleSubmit = async (data: any) => {
+  // Status badge styling
+  const statusClass = (status: string) => {
+    switch (status) {
+      case "pending":
+        return "bg-yellow-500/20 text-yellow-500 border-yellow-600/30";
+      case "completed":
+        return "bg-green-500/20 text-green-400 border-green-600/30";
+      case "cancelled":
+        return "bg-red-500/20 text-red-400 border-red-600/30";
+      default:
+        return "bg-gray-500/20 text-gray-400 border-gray-600/30";
+    }
+  };
+
+  // Search filter
+  const filtered = items.filter((s) => {
+    const txt = searchTerm.toLowerCase();
+    return (
+      s.name.toLowerCase().includes(txt) ||
+      s.phone.includes(txt) ||
+      s.registrationNumber.toLowerCase().includes(txt) ||
+      s.modelVariant.toLowerCase().includes(txt)
+    );
+  });
+
+  // Submit status update
+  const handleStatusUpdate = async (data: any) => {
+    if (!selectedItem) return;
+
     setLoading(true);
     try {
-      const formData = new FormData();
-      formData.append("title", data.title);
-      formData.append("description", data.description);
-      formData.append("status", data.status);
+      await updateServiceBooking(selectedItem._id, { status: data.status });
 
-      if (data.icon instanceof File) {
-        formData.append("icon", data.icon);
-      }
-
-      if (editingService) {
-        await updateService(editingService._id, formData);
-        toast({
-          title: "Service Updated",
-          description: `"${data.title}" updated successfully.`,
-        });
-      } else {
-        await createService(formData);
-        toast({
-          title: "Service Added",
-          description: `"${data.title}" added successfully.`,
-        });
-      }
+      toast({
+        title: "Updated Successfully",
+        description: "Service booking status updated.",
+      });
 
       setIsDialogOpen(false);
-      setEditingService(null);
-      form.reset();
-      fetchServices();
-    } catch (error: any) {
+      load();
+    } catch (e: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to save service",
+        description: e.message || "Failed to update status",
         variant: "destructive",
       });
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
   };
 
-  // Handle Delete
-  const handleDelete = async (id: string, title: string) => {
+  // Delete booking
+  const handleDelete = async (id: string) => {
     setLoading(true);
     try {
-      await deleteService(id);
-      toast({
-        title: "Service Deleted",
-        description: `"${title}" has been deleted successfully.`,
-      });
-      fetchServices();
-    } catch (error: any) {
+      await deleteServiceBooking(id);
+      toast({ title: "Deleted", description: "Booking removed." });
+      load();
+    } catch (e: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to delete service",
+        description: e.message || "Failed to delete",
         variant: "destructive",
       });
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
   };
-
-  // Filter services
-  const filteredServices = services.filter((service) => {
-    const matchesSearch =
-      service.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      service.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus =
-      statusFilter === "all" || service.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      {/* HEADER */}
+      <div className="flex flex-col sm:flex-row justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-3">
+          <h1 className="text-3xl font-bold flex gap-3 items-center">
             <Settings className="h-8 w-8 text-primary" />
-            Services Management
+            Service Booking Management
           </h1>
           <p className="text-muted-foreground">
-            Manage services dynamically with CRUD
+            View, update & manage customer service requests
           </p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="vikram-button gap-2 w-fit">
-              <Plus className="h-4 w-4" /> Add Service
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="vikram-card max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>
-                {editingService ? "Edit Service" : "Add New Service"}
-              </DialogTitle>
-            </DialogHeader>
-            <Form {...form}>
-              <form
-                onSubmit={form.handleSubmit(handleSubmit)}
-                className="space-y-4"
-              >
-                <FormField
-                  control={form.control}
-                  name="title"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Service Title</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Enter title" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="description"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Description</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Enter description..."
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="icon"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Icon</FormLabel>
-                      <FormControl>
-                        <>
-                          {editingService && !field.value && (
-                            <div className="mb-2">
-                              <img
-                                src={editingService.icon}
-                                alt="current icon"
-                                className="w-16 h-16 object-cover rounded-lg border"
-                              />
-                              <p className="text-xs text-muted-foreground">
-                                Current Icon
-                              </p>
-                            </div>
-                          )}
-                          <Input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) =>
-                              field.onChange(e.target.files?.[0] || null)
-                            }
-                          />
-                        </>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="status"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Status</FormLabel>
-                      <FormControl>
-                        <select
-                          {...field}
-                          className="w-full px-3 py-2 rounded-md border bg-input"
-                        >
-                          <option value="active">Active</option>
-                          <option value="inactive">Inactive</option>
-                        </select>
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-                <div className="flex gap-2">
-                  <Button
-                    type="submit"
-                    className="vikram-button"
-                    disabled={loading}
-                  >
-                    {loading && (
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    )}
-                    {editingService ? "Update Service" : "Add Service"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setIsDialogOpen(false);
-                      setEditingService(null);
-                      form.reset();
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
       </div>
 
-      {/* Filters */}
+      {/* SEARCH + FILTER */}
       <Card className="vikram-card">
         <CardContent className="pt-6">
-          <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex flex-col sm:flex-row gap-4 items-center">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search services..."
+                placeholder="Search by name, phone, reg no, model..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
               />
             </div>
+
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               className="px-3 py-2 rounded-md border bg-input text-sm"
             >
               <option value="all">All Status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
+              <option value="pending">Pending</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
             </select>
           </div>
         </CardContent>
       </Card>
 
-      {/* Loader */}
+      {/* LOADING */}
       {loading && (
         <div className="flex justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       )}
 
-      {/* Services Grid */}
+      {/* SERVICE CARDS GRID */}
       {!loading && (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {filteredServices.map((service) => (
-            <Card key={service._id} className="vikram-card">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={service.icon}
-                      alt={service.title}
-                      className="w-12 h-12 rounded-lg object-cover"
-                    />
+          {filtered
+            .filter((x) => statusFilter === "all" || x.status === statusFilter)
+            .map((b) => (
+              <Card key={b._id} className="vikram-card">
+                <CardHeader>
+                  <CardTitle className="flex justify-between items-start">
                     <div>
-                      <CardTitle className="text-lg">{service.title}</CardTitle>
-                      <Badge
-                        variant={
-                          service.status === "active" ? "default" : "secondary"
-                        }
-                        className={
-                          service.status === "active"
-                            ? "bg-green-500/20 text-green-500 border-green-500/30"
-                            : ""
-                        }
-                      >
-                        <CheckCircle className="h-3 w-3 mr-1" />{" "}
-                        {service.status}
-                      </Badge>
+                      <div className="font-semibold text-lg">{b.name}</div>
+
+                      <div className="text-muted-foreground text-sm space-y-1">
+                        <div className="flex items-center gap-2">
+                          <Phone size={14} /> {b.phone}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Mail size={14} /> {b.email}
+                        </div>
+                      </div>
+                    </div>
+
+                    <Badge className={statusClass(b.status)}>
+                      <CheckCircle size={12} className="mr-1" />
+                      {b.status}
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+
+                <CardContent className="space-y-4 text-sm">
+                  {/* VEHICLE DETAILS */}
+                  <div className="border rounded-lg p-3 space-y-1 bg-black/10">
+                    <div className="flex gap-2 items-center">
+                      <FileText size={14} />
+                      Reg No: {b.registrationNumber}
+                    </div>
+                    <div className="flex gap-2 items-center">
+                      Model: {b.modelVariant}
                     </div>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-muted-foreground text-sm">
-                  {service.description}
-                </p>
-                <div className="text-xs text-muted-foreground">
-                  Added:{" "}
-                  {new Date(service.createdAt).toLocaleDateString("en-IN")}
-                </div>
-                <div className="flex gap-2">
-                  {/* <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 gap-1"
-                    onClick={async () => {
-                      const res = await getServiceById(service._id);
-                      setViewingService(res.data);
-                      toast({
-                        title: "Service Details",
-                        description: `Viewing "${res.data.title}"`,
-                      });
-                    }}
-                  >
-                    <Eye className="h-3 w-3" /> View
-                  </Button> */}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 gap-1"
-                    onClick={() => {
-                      setEditingService(service);
-                      form.reset({
-                        title: service.title,
-                        description: service.description,
-                        status: service.status,
-                        icon: null, // reset file field
-                      });
-                      setIsDialogOpen(true);
-                    }}
-                  >
-                    <Edit className="h-3 w-3" /> Edit
-                  </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-red-500 hover:text-red-600"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent className="vikram-card">
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Delete Service</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Are you sure you want to delete "{service.title}"?
-                          This action cannot be undone.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() =>
-                            handleDelete(service._id, service.title)
-                          }
-                          className="bg-red-600 hover:bg-red-700"
+
+                  {/* SERVICE DETAILS */}
+                  <div className="border rounded-lg p-3 space-y-1 bg-black/10">
+                    <div>Service Type: {b.serviceType}</div>
+                    <div>Package: {b.servicePackage}</div>
+
+                    <div className="flex gap-2 items-center">
+                      <Calendar size={14} />
+                      {new Date(b.appointmentDate).toLocaleDateString("en-IN")}
+                    </div>
+
+                    <div className="flex gap-2 items-center">
+                      <Clock size={14} /> {b.timeSlot}
+                    </div>
+                  </div>
+
+                  {/* ATTACHMENT */}
+                  {b.attachment && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => window.open(b.attachment, "_blank")}
+                    >
+                      <Eye className="h-4 w-4 mr-2" /> View Attachment
+                    </Button>
+                  )}
+
+                  {/* ACTION BUTTONS */}
+                  <div className="flex gap-2">
+                    {/* UPDATE BUTTON */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => {
+                        setSelectedItem(b);
+                        form.reset({ status: b.status });
+                        setIsDialogOpen(true);
+                      }}
+                    >
+                      <Edit className="h-4 w-4 mr-1" /> Update
+                    </Button>
+
+                    {/* DELETE BUTTON */}
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-red-500 hover:text-red-600 px-3"
                         >
-                          Delete
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+
+                      <AlertDialogContent className="vikram-card">
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete Booking?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+
+                          <AlertDialogAction
+                            className="bg-red-600 hover:bg-red-700"
+                            onClick={() => handleDelete(b._id)}
+                          >
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
         </div>
       )}
 
-      {!loading && filteredServices.length === 0 && (
-        <Card className="vikram-card">
-          <CardContent className="py-12 text-center">
-            <Settings className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <p className="text-muted-foreground">
-              No services found matching your criteria.
-            </p>
-          </CardContent>
-        </Card>
-      )}
+      {/* UPDATE STATUS POPUP */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="vikram-card max-w-md">
+          <DialogHeader>
+            <DialogTitle>Update Status</DialogTitle>
+          </DialogHeader>
+
+          <form
+            onSubmit={form.handleSubmit(handleStatusUpdate)}
+            className="space-y-4"
+          >
+            <select
+              {...form.register("status")}
+              className="w-full px-3 py-2 rounded-md border bg-input"
+            >
+              <option value="pending">Pending</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+
+            <Button type="submit" className="vikram-button w-full">
+              Save Changes
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -5,7 +5,7 @@ const API_URL = import.meta.env.VITE_API_URL;
 // Get all services
 export const getServices = async () => {
   try {
-    const res = await axiosInstance.get(`${API_URL}/services`);
+    const res = await axiosInstance.get(`${API_URL}/service-booking`);
     return res.data; // { success, message, data: [...] }
   } catch (error: any) {
     throw error.response?.data || { message: "Failed to fetch services" };

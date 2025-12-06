@@ -530,12 +530,18 @@ export default function Leads() {
   const emailQuotation = async () => {
     if (!qLead || !qForm) return;
 
-    // use saved email, no alerts
-    const to = (qLead.userEmail || "").trim();
+    // Prefer applicant email → fallback to user email
+    const to = (
+      qForm.customerEmail ||
+      qLead.applicantEmail ||
+      qLead.userEmail ||
+      ""
+    ).trim();
+
     if (!to) {
       toast({
         title: "Missing email",
-        description: "No email found for this lead.",
+        description: "No valid email found for this customer.",
         variant: "destructive",
       });
       return;
@@ -546,11 +552,14 @@ export default function Leads() {
 
     try {
       const r = await sendQoutationEmail(id, to);
-      toast({ title: "Email sent", description: r?.message || "Delivered." });
+      toast({
+        title: "Email sent",
+        description: r?.message || "Delivered to customer.",
+      });
     } catch (e: any) {
       toast({
         title: "Email failed",
-        description: e?.message || "Unable to send.",
+        description: e?.message || "Unable to send quotation.",
         variant: "destructive",
       });
     }
@@ -662,7 +671,28 @@ export default function Leads() {
       aadharFile: safeKyc(x?.aadharFile),
       panCardFile: safeKyc(x?.panCardFile),
       assignedTo: x?.assignedTo,
-      __v: x?.__v,
+
+      // ⭐⭐⭐ ADD THESE FIELDS ⭐⭐⭐
+
+      financeCustomerName: x?.financeCustomerName,
+      addressLine: x?.addressLine,
+      state: x?.state,
+      district: x?.district,
+      pin: x?.pin,
+      whatsapp: x?.whatsapp,
+      applicantEmail: x?.applicantEmail,
+      applicantType: x?.applicantType,
+      sourceOfEnquiry: x?.sourceOfEnquiry,
+
+      aadharNumber: x?.aadharNumber,
+      panNumber: x?.panNumber,
+      kycPhone: x?.kycPhone,
+      kycProvided: x?.kycProvided,
+      kycFields: x?.kycFields,
+
+      fullNameForCibil: x?.fullNameForCibil,
+      creditChargeINR: x?.creditChargeINR,
+      creditProvider: x?.creditProvider,
     };
   };
 
@@ -671,7 +701,16 @@ export default function Leads() {
     setLoading(true);
     try {
       const res = await getleads();
-      const raw = Array.isArray(res?.data) ? res.data : [];
+      const data = res?.data;
+
+      let raw = [];
+
+      if (Array.isArray(data)) {
+        raw = data;
+      } else if (data && typeof data === "object") {
+        raw = [data];
+      }
+
       setLeads(raw.map(normalizeLead));
     } catch (error: any) {
       toast({
@@ -1384,17 +1423,91 @@ export default function Leads() {
               <Separator />
 
               {/* Customer */}
+              <Separator />
+
+              {/* Applicant / Finance Details From API */}
               <div>
-                <h4 className="font-semibold mb-2">Customer Details</h4>
+                <h4 className="font-semibold mb-2">Applicant Information</h4>
+
                 <p>
-                  <b>Name:</b>{" "}
-                  {viewLead.customerName || viewLead.userName || "—"}
+                  <b>Finance Customer Name:</b>{" "}
+                  {viewLead.financeCustomerName || "—"}
+                </p>
+
+                <p>
+                  <b>Address:</b> {viewLead.addressLine || "—"}
+                </p>
+
+                <p>
+                  <b>Location:</b> {viewLead.district || "—"},{" "}
+                  {viewLead.state || "—"} - {viewLead.pin || "—"}
+                </p>
+
+                <p>
+                  <b>WhatsApp:</b> {viewLead.whatsapp || "—"}
+                </p>
+
+                <p>
+                  <b>Email:</b> {viewLead.applicantEmail || "—"}
+                </p>
+
+                <p>
+                  <b>Applicant Type:</b> {viewLead.applicantType || "—"}
+                </p>
+
+                <p>
+                  <b>Source of Enquiry:</b> {viewLead.sourceOfEnquiry || "—"}
+                </p>
+              </div>
+
+              <Separator />
+
+              {/* KYC Information */}
+              <div>
+                <h4 className="font-semibold mb-2">KYC Details</h4>
+
+                <p>
+                  <b>Aadhaar Number:</b> {viewLead.aadharNumber || "—"}
                 </p>
                 <p>
-                  <b>Phone:</b> {viewLead.phone || viewLead.userPhone || "—"}
+                  <b>PAN Number:</b> {viewLead.panNumber || "—"}
                 </p>
                 <p>
-                  <b>Email:</b> {viewLead.userEmail || "—"}
+                  <b>KYC Phone:</b> {viewLead.kycPhone || "—"}
+                </p>
+
+                <p>
+                  <b>KYC Provided:</b>{" "}
+                  {viewLead.kycProvided ? "Yes ✔️" : "No ❌"}
+                </p>
+
+                <p>
+                  <b>KYC Fields:</b>
+                </p>
+                <pre className="text-xs bg-muted p-2 rounded">
+                  {JSON.stringify(viewLead.kycFields, null, 2)}
+                </pre>
+              </div>
+
+              <Separator />
+
+              {/* CIBIL Details */}
+              <div>
+                <h4 className="font-semibold mb-2">CIBIL / Credit Details</h4>
+
+                <p>
+                  <b>Full Name (CIBIL):</b> {viewLead.fullNameForCibil || "—"}
+                </p>
+
+                <p>
+                  <b>Credit Charge (₹):</b>{" "}
+                  {viewLead.creditChargeINR
+                    ? `₹ ${viewLead.creditChargeINR}`
+                    : "—"}
+                </p>
+
+                <p>
+                  <b>Credit Provider:</b> {viewLead.creditProvider || "—"}
                 </p>
               </div>
 

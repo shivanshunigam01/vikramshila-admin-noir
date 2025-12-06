@@ -93,9 +93,13 @@ const formatINR = (n?: number | string) => {
 /* Normalize each lead so UI is safe */
 const normalizeLead = (x: any): Lead => ({
   _id: String(x?._id),
+
+  // Product
   productId: x?.productId,
   productTitle: x?.productTitle || "",
   productCategory: x?.productCategory || "",
+
+  // Finance
   vehiclePrice: numberOrZero(x?.vehiclePrice),
   downPaymentAmount: numberOrZero(x?.downPaymentAmount),
   downPaymentPercentage: numberOrZero(x?.downPaymentPercentage),
@@ -103,26 +107,46 @@ const normalizeLead = (x: any): Lead => ({
   interestRate: numberOrZero(x?.interestRate),
   tenure: numberOrZero(x?.tenure),
   estimatedEMI: numberOrZero(x?.estimatedEMI),
-  status: (x?.status || "C1") as Lead["status"],
+
+  status: x?.status || "C1",
   createdAt: x?.createdAt || new Date().toISOString(),
   updatedAt: x?.updatedAt,
 
-  customerName: x?.customerName || x?.userName || "",
-  userName: x?.userName,
+  /* ---------- CUSTOMER DETAILS ---------- */
+
+  // customer name fields
+  financeCustomerName: x?.financeCustomerName || "",
+  customerName: x?.customerName || "",
+  userName: x?.userName || "",
+
+  // contact numbers
+  whatsapp: x?.whatsapp || "",
   userPhone: x?.userPhone || x?.phone || "",
-  userEmail: x?.userEmail || "",
   phone: x?.phone || "",
 
+  // email fields
+  applicantEmail: x?.applicantEmail || "",
+  userEmail: x?.userEmail || "",
+
+  // address fields
+  addressLine: x?.addressLine || "",
+  state: x?.state || "",
+  district: x?.district || "",
+  pin: x?.pin || "",
+
+  /* ---------- KYC DETAILS ---------- */
   aadharFile: x?.aadharFile || null,
   panCardFile: x?.panCardFile || null,
   aadharNumber:
     x?.aadharNumber === 0 ? "" : x?.aadharNumber?.toString?.() || "",
   panNumber: x?.panNumber || "",
 
+  /* ---------- ASSIGNMENT ---------- */
   assignedTo: x?.assignedTo || "",
   assignedToEmail: x?.assignedToEmail || "",
   assignedToId: x?.assignedToId || "",
 
+  /* ---------- DSE UPDATES ---------- */
   dseUpdates: Array.isArray(x?.dseUpdates) ? x.dseUpdates : [],
 });
 
@@ -286,24 +310,51 @@ export default function DSELeads() {
                 </div>
 
                 {/* Customer */}
-                <div className="rounded-md border bg-muted/40 p-3">
+                {/* Customer */}
+                <div className="rounded-md border bg-muted/40 p-3 space-y-1">
+                  {/* Name */}
                   <div className="text-sm font-medium">
-                    {lead.customerName || lead.userName || "—"}
+                    {lead.financeCustomerName ||
+                      lead.customerName ||
+                      lead.userName ||
+                      "—"}
                   </div>
+
+                  {/* Phone + Email */}
                   <div className="text-xs text-muted-foreground mt-1">
-                    {lead.userPhone || lead.phone || "—"} ·{" "}
-                    {lead.userEmail || "—"}
+                    {lead.whatsapp || lead.userPhone || lead.phone || "—"} ·{" "}
+                    {lead.applicantEmail || lead.userEmail || "—"}
                   </div>
+
+                  {/* Address Line */}
+                  {lead.addressLine && (
+                    <div className="text-xs text-muted-foreground">
+                      {lead.addressLine}
+                    </div>
+                  )}
+
+                  {/* State, District, PIN */}
+                  {(lead.state || lead.district || lead.pin) && (
+                    <div className="text-xs text-muted-foreground">
+                      {lead.state || "—"}, {lead.district || "—"}{" "}
+                      {lead.pin || ""}
+                    </div>
+                  )}
+
+                  {/* Call + Email Buttons */}
                   <div className="flex gap-2 mt-2">
-                    {lead.userPhone && (
-                      <a href={`tel:${lead.userPhone}`}>
+                    {(lead.whatsapp || lead.userPhone) && (
+                      <a href={`tel:${lead.whatsapp || lead.userPhone}`}>
                         <Button size="sm" variant="outline">
                           <Phone className="h-3.5 w-3.5 mr-1" /> Call
                         </Button>
                       </a>
                     )}
-                    {lead.userEmail && (
-                      <a href={`mailto:${lead.userEmail}`}>
+
+                    {(lead.applicantEmail || lead.userEmail) && (
+                      <a
+                        href={`mailto:${lead.applicantEmail || lead.userEmail}`}
+                      >
                         <Button size="sm" variant="outline">
                           <Mail className="h-3.5 w-3.5 mr-1" /> Email
                         </Button>
