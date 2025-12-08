@@ -6,13 +6,13 @@ const API_URL = import.meta.env.VITE_API_URL as string;
 export type Granularity = "day" | "week" | "month" | "year";
 
 /* ---------------------- Response row types ---------------------- */
+
+// Quick Enquiry report row (from /api/reports/enquiries)
 export type EnquiryRow = {
-  timeBucket: string; // ISO string bucket
-  branch?: string | null;
-  dseId?: string | null;
-  status?: "C0" | "C1" | "C2" | "C3";
-  source?: string | null;
-  count: number;
+  timeBucket: string; // ISO date bucket
+  count: number; // total enquiries in that bucket
+  whatsappConsent: number; // those with whatsappConsent = true
+  consentCall: number; // those with consentCall = true
 };
 
 export type ConversionRow = {
@@ -59,7 +59,35 @@ export type FiltersPayload = {
   models: string[];
 };
 
+/* ---------------------- Overview type ---------------------- */
+
+export type OverviewData = {
+  leads: {
+    total: number;
+    byStatus: Record<string, number>; // { C0: x, C1: y, ... }
+  };
+  quickEnquiries: {
+    total: number;
+  };
+  serviceBookings: {
+    total: number;
+    byStatus: Record<string, number>; // { pending: x, confirmed: y, ... }
+  };
+  grievances: {
+    total: number;
+    byStatus: Record<string, number>; // { pending: x, ... }
+  };
+  clientVisits: {
+    total: number;
+  };
+  planner: {
+    total: number;
+    byStatus: Record<string, number>; // { planned: x, completed: y, ... }
+  };
+};
+
 /* ---------------------- Helpers ---------------------- */
+
 const authHeader = () => {
   const token = localStorage.getItem("admin_token");
   return token ? { Authorization: `Bearer ${token}` } : {};
@@ -85,20 +113,24 @@ const getCSV = async (url: string, params?: Record<string, any>) => {
 };
 
 /* ---------------------- API wrapper ---------------------- */
+
 export const ReportsAPI = {
+  // Top overview cards
+  overview: (params: { from?: string; to?: string }) =>
+    get<OverviewData>(`/reports/overview`, params),
+
+  // Filters for branch/DSE/segments/models (for leads & sales)
   filters: () => get<FiltersPayload>(`/reports/filters`),
 
+  // Quick Enquiry time-series report
   enquiries: (params: {
     granularity?: Granularity;
     from?: string;
     to?: string;
-    branchId?: string;
-    dseId?: string;
-    status?: string;
-    source?: string;
   }) => get<EnquiryRow[]>(`/reports/enquiries`, params),
   enquiriesCSV: (params: any) => getCSV(`/reports/enquiries`, params),
 
+  // Lead funnel / conversions
   conversions: (params: {
     granularity?: Granularity;
     from?: string;
@@ -108,6 +140,7 @@ export const ReportsAPI = {
   }) => get<ConversionRow[]>(`/reports/conversions`, params),
   conversionsCSV: (params: any) => getCSV(`/reports/conversions`, params),
 
+  // Sales C3 (retail units)
   salesC3: (params: {
     granularity?: Granularity;
     from?: string;
@@ -119,6 +152,7 @@ export const ReportsAPI = {
   }) => get<SalesRow[]>(`/reports/sales-c3`, params),
   salesC3CSV: (params: any) => getCSV(`/reports/sales-c3`, params),
 
+  // Internal costing / profitability
   costing: (params: {
     granularity?: Granularity;
     from?: string;
@@ -127,24 +161,28 @@ export const ReportsAPI = {
   }) => get<CostingRow[]>(`/reports/internal-costing`, params),
   costingCSV: (params: any) => getCSV(`/reports/internal-costing`, params),
 
+  // DSE movement & tracking
   movementPolyline: (params: {
     userId: string;
     date?: string;
     from?: string;
     to?: string;
   }) => get<MovementPolyline>(`/reports/dse/movement/polyline`, params),
+
   movementGeoJSON: (params: {
     userId: string;
     date?: string;
     from?: string;
     to?: string;
   }) => get<ReportsGeoJSON>(`/reports/dse/movement/geojson`, params),
+
   movementSummary: (params: {
     userId: string;
     granularity?: Granularity;
     from?: string;
     to?: string;
   }) => get<MovementSummaryRow[]>(`/reports/dse/movement/summary`, params),
+
   movementSummaryCSV: (params: any) =>
     getCSV(`/reports/dse/movement/summary`, params),
 

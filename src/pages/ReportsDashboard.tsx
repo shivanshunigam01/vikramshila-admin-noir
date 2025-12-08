@@ -1,4 +1,6 @@
 // src/pages/ReportsPage.tsx
+"use client";
+
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,6 +29,7 @@ import {
   Download as DownloadIcon,
   Filter as FilterIcon,
   CalendarRange,
+  FileText,
 } from "lucide-react";
 import {
   ReportsAPI,
@@ -38,6 +41,7 @@ import {
   type Granularity,
   saveBlob,
   type FiltersPayload,
+  type OverviewData,
 } from "@/services/reportsService";
 import {
   ResponsiveContainer,
@@ -119,7 +123,7 @@ const PIE_COLORS = [
   "#0ea5e9",
 ];
 
-/* ----- Date helpers for month/year pickers (Week REMOVED) ----- */
+/* ----- Date helpers for month/year pickers ----- */
 const currentYear = new Date().getFullYear();
 const YEARS = Array.from({ length: 12 }, (_, i) => String(currentYear - i)); // last 12 years
 const MONTHS = Array.from({ length: 12 }, (_, i) => ({
@@ -171,10 +175,9 @@ export default function ReportsPage() {
   const [dseId, setDseId] = useState<string>("");
   const [segment, setSegment] = useState<string>("");
   const [model, setModel] = useState<string>("");
-  const [status, setStatus] = useState<string>("all");
-  const [source, setSource] = useState<string>("");
 
   const [filters, setFilters] = useState<FiltersPayload | null>(null);
+  const [overview, setOverview] = useState<OverviewData | null>(null);
 
   // Data
   const [enquiries, setEnquiries] = useState<EnquiryRow[]>([]);
@@ -188,7 +191,7 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(false);
   const [loadingMovement, setLoadingMovement] = useState(false);
 
-  /* ----- Robust local start/end-of-day → ISO (fix day-wise range) ----- */
+  /* ----- Local start/end-of-day → ISO ----- */
   const toLocalStartISO = (d?: string) => {
     if (!d) return undefined;
     const dt = new Date(d);
@@ -224,15 +227,15 @@ export default function ReportsPage() {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [enq, conv, sal, cost] = await Promise.all([
+      const [ov, enq, conv, sal, cost] = await Promise.all([
+        ReportsAPI.overview({
+          from: fromISO,
+          to: toISO,
+        }),
         ReportsAPI.enquiries({
           granularity,
           from: fromISO,
           to: toISO,
-          branchId: branchId || undefined,
-          dseId: dseId || undefined,
-          status,
-          source: source || undefined,
         }),
         ReportsAPI.conversions({
           granularity,
@@ -257,6 +260,8 @@ export default function ReportsPage() {
           branchId: branchId || undefined,
         }),
       ]);
+
+      setOverview(ov);
       setEnquiries(enq);
       setConversions(conv);
       setSales(sal);
@@ -290,23 +295,14 @@ export default function ReportsPage() {
   }, []);
   useEffect(() => {
     loadAll();
-  }, [
-    granularity,
-    fromDate,
-    toDate,
-    branchId,
-    dseId,
-    segment,
-    model,
-    status,
-    source,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  ]);
+  }, [granularity, fromDate, toDate, branchId, dseId, segment, model]);
   useEffect(() => {
     loadMovement();
-  }, [dseId, granularity, fromDate, toDate]); // eslint-disable-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dseId, granularity, fromDate, toDate]);
 
-  /* When changing granularity to month/year, normalize the range to a clean month/year window */
+  // Normalize range when changing granularity
   useEffect(() => {
     if (!range?.from) return;
     if (granularity === "month") {
@@ -322,32 +318,43 @@ export default function ReportsPage() {
   }, [granularity]);
 
   /* ------------------- Derived Data ------------------- */
-  const enquirySeries = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const r of enquiries) {
-      const k = r.timeBucket.slice(0, 10);
-      m.set(k, (m.get(k) || 0) + (r.count || 0));
-    }
-    return Array.from(m.entries()).map(([date, value]) => ({ date, value }));
+
+  // Quick enquiry time series: total vs consents
+  const enquirySeries = useMemo(
+    () =>
+      enquiries.map((r) => ({
+        date: r.timeBucket.slice(0, 10),
+        total: r.count,
+        whatsapp: r.whatsappConsent,
+        call: r.consentCall,
+      })),
+    [enquiries]
+  );
+
+  const enquiryHeatmapData = useMemo(
+    () => enquirySeries.map((e) => ({ date: e.date, value: e.total })),
+    [enquirySeries]
+  );
+
+  const enquiryPie = useMemo(() => {
+    const totals = enquiries.reduce(
+      (acc, r) => {
+        acc.total += r.count;
+        acc.whatsapp += r.whatsappConsent;
+        acc.call += r.consentCall;
+        return acc;
+      },
+      { total: 0, whatsapp: 0, call: 0 }
+    );
+
+    return [
+      { name: "Total Enquiries", value: totals.total },
+      { name: "WhatsApp Consent", value: totals.whatsapp },
+      { name: "Call Consent", value: totals.call },
+    ];
   }, [enquiries]);
 
-  const enquiryStatusPie = useMemo(() => {
-    const by: Record<string, number> = {};
-    for (const r of enquiries) {
-      const k = r.status || "Unknown";
-      by[k] = (by[k] || 0) + (r.count || 0);
-    }
-    return Object.entries(by).map(([name, value]) => ({ name, value }));
-  }, [enquiries]);
-
-  const sourceOptions = useMemo(() => {
-    const s = new Set<string>();
-    for (const r of enquiries) {
-      if (r.source) s.add(String(r.source));
-    }
-    return Array.from(s.values()).sort();
-  }, [enquiries]);
-
+  // Lead conversions
   const conversionsLine = useMemo(
     () =>
       conversions.map((r) => ({
@@ -371,6 +378,7 @@ export default function ReportsPage() {
     }));
   }, [conversions]);
 
+  // Sales (C3)
   const salesSeries = useMemo(
     () =>
       sales.map((r) => ({
@@ -390,6 +398,7 @@ export default function ReportsPage() {
     return Object.entries(by).map(([name, value]) => ({ name, value }));
   }, [sales]);
 
+  // Costing
   const costingSeries = useMemo(
     () =>
       costing.map((r) => ({
@@ -402,6 +411,7 @@ export default function ReportsPage() {
     [costing]
   );
 
+  // Movement (DSE pings)
   const movementSeries = useMemo(
     () =>
       movementSummary.map((r) => ({
@@ -410,6 +420,29 @@ export default function ReportsPage() {
       })),
     [movementSummary]
   );
+
+  // KPIs from overview & series
+  const totalQuickEnquiries = overview?.quickEnquiries.total ?? 0;
+  const totalLeads = overview?.leads.total ?? 0;
+  const totalC3FromOverview =
+    overview?.leads.byStatus?.["C3"] ?? overview?.leads.byStatus?.["c3"] ?? 0;
+
+  const totalServiceBookings = overview?.serviceBookings.total ?? 0;
+  const totalGrievances = overview?.grievances.total ?? 0;
+  const totalClientVisits = overview?.clientVisits.total ?? 0;
+  const totalPlannerVisits = overview?.planner.total ?? 0;
+
+  const totalSalesUnits = sales.reduce((a, c) => a + (c.units || 0), 0);
+  const avgProfit =
+    costing.length > 0
+      ? costing.reduce((a, c) => a + (c.avgProfit || 0), 0) /
+        Math.max(1, costing.length)
+      : 0;
+  const avgConversionPct =
+    conversions.length > 0
+      ? conversions.reduce((a, c) => a + (c.conversionC0toC3 || 0), 0) /
+        Math.max(1, conversions.length)
+      : 0;
 
   /* ------------------- Downloads ------------------- */
   const downloadCSV = async (
@@ -440,9 +473,6 @@ export default function ReportsPage() {
     if (kind === "enq") {
       const blob = await ReportsAPI.enquiriesCSV({
         ...common,
-        dseId: dseId || undefined,
-        status,
-        source: source || undefined,
       });
       return saveBlob(blob, name("enquiries"));
     }
@@ -483,15 +513,18 @@ export default function ReportsPage() {
     setDseId("");
     setSegment("");
     setModel("");
-    setStatus("all");
-    setSource("");
+  };
+
+  const handlePrintPDF = () => {
+    // Browser "Save as PDF" via print dialog
+    window.print();
   };
 
   /* ------------------- UI ------------------- */
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 print:bg-white print:text-black">
       {/* 🔹 Filters bar */}
-      <div className="sticky top-0 z-20 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
+      <div className="sticky top-0 z-20 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b print:hidden">
         <div className="max-w-full mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
@@ -499,6 +532,15 @@ export default function ReportsPage() {
               <span>Report Filters</span>
             </div>
             <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePrintPDF}
+                title="Save full dashboard as PDF"
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                Save as PDF
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -535,19 +577,18 @@ export default function ReportsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="day">Day</SelectItem>
-                  {/* Week removed */}
+                  {/* Week removed from UI */}
                   <SelectItem value="month">Month</SelectItem>
                   <SelectItem value="year">Year</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Date Range (granularity-aware; Week removed) */}
+            {/* Date Range */}
             <div className="md:col-span-3">
               <Label className="text-xs">Date Range</Label>
 
               {granularity === "year" ? (
-                // Year-only selector
                 <Select
                   value={
                     range?.from
@@ -571,7 +612,6 @@ export default function ReportsPage() {
                   </SelectContent>
                 </Select>
               ) : granularity === "month" ? (
-                // Month + Year selectors
                 <div className="flex gap-2">
                   <Select
                     value={
@@ -626,7 +666,6 @@ export default function ReportsPage() {
                   </Select>
                 </div>
               ) : (
-                // Day: default range calendar
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
@@ -740,114 +779,156 @@ export default function ReportsPage() {
                 </SelectContent>
               </Select>
             </div>
-
-            {/* Status */}
-            <div>
-              <Label className="text-xs">Status (Enquiries)</Label>
-              <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger className="h-9">
-                  <SelectValue placeholder="all" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="C0">C0</SelectItem>
-                  <SelectItem value="C1">C1</SelectItem>
-                  <SelectItem value="C2">C2</SelectItem>
-                  <SelectItem value="C3">C3</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Source */}
-            <div>
-              <Label className="text-xs">Source (Enquiries)</Label>
-              <Select
-                value={toSelectValue(source)}
-                onValueChange={(v) => setSource(fromSelectValue(v))}
-              >
-                <SelectTrigger className="h-9">
-                  <SelectValue placeholder="All sources" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL}>All</SelectItem>
-                  {sourceOptions.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
           </div>
         </div>
       </div>
 
-      {/* 🔹 KPI Row */}
-      <div className="grid gap-4 md:grid-cols-4">
+      {/* 🔹 OVERVIEW KPI ROW 1 */}
+      <div className="grid gap-4 md:grid-cols-4 print:grid-cols-4">
         <Card>
           <CardHeader>
             <CardTitle className="text-sm flex items-center gap-2">
               <CalendarDays className="h-4 w-4" />
-              Enquiries (8wks)
+              Quick Enquiries
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <CalendarHeatmap data={enquirySeries} />
+            <div className="text-3xl font-semibold">
+              {totalQuickEnquiries.toLocaleString("en-IN")}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Total enquiries in selected period
+            </p>
           </CardContent>
         </Card>
+
         <Card>
           <CardHeader>
             <CardTitle className="text-sm flex items-center gap-2">
               <LineIcon className="h-4 w-4" />
-              Avg Profit
+              Total Leads
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-semibold">
-              ₹
-              {(
-                costing.reduce((a, c) => a + (c.avgProfit || 0), 0) /
-                Math.max(1, costing.length)
-              ).toFixed(0)}
+              {totalLeads.toLocaleString("en-IN")}
             </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              All leads across stages (C0–C3)
+            </p>
           </CardContent>
         </Card>
+
         <Card>
           <CardHeader>
             <CardTitle className="text-sm flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
-              Total C3 Units
+              C3 Retail Units
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-semibold">
-              {sales.reduce((a, c) => a + (c.units || 0), 0)}
+              {totalC3FromOverview.toLocaleString("en-IN")}
             </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Leads converted to C3 (retail)
+            </p>
           </CardContent>
         </Card>
+
         <Card>
           <CardHeader>
             <CardTitle className="text-sm flex items-center gap-2">
               <PieIcon className="h-4 w-4" />
-              Avg Conv %
+              Avg Conversion %
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-semibold">
-              {(
-                conversions.reduce((a, c) => a + (c.conversionC0toC3 || 0), 0) /
-                Math.max(1, conversions.length)
-              ).toFixed(1)}
-              %
+              {avgConversionPct.toFixed(1)}%
             </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Average C0 → C3 conversion
+            </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* 🔹 Enquiries */}
+      {/* 🔹 OVERVIEW KPI ROW 2 */}
+      <div className="grid gap-4 md:grid-cols-4 print:grid-cols-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm flex items-center gap-2">
+              <CalendarDays className="h-4 w-4" />
+              Service Bookings
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-semibold">
+              {totalServiceBookings.toLocaleString("en-IN")}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Total workshop booking requests
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm flex items-center gap-2">
+              <CalendarDays className="h-4 w-4" />
+              Grievances
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-semibold">
+              {totalGrievances.toLocaleString("en-IN")}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Complaints / feedback registered
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm flex items-center gap-2">
+              <MapIcon className="h-4 w-4" />
+              Client Visits
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-semibold">
+              {totalClientVisits.toLocaleString("en-IN")}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Total DSE physical visits
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm flex items-center gap-2">
+              <LineIcon className="h-4 w-4" />
+              Avg Profit / Vehicle
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-semibold">
+              ₹{avgProfit.toFixed(0)}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              From internal costing report
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* 🔹 Quick Enquiries */}
       <Card>
         <CardHeader className="flex justify-between">
-          <CardTitle>Enquiries</CardTitle>
+          <CardTitle>Quick Enquiries</CardTitle>
           <Button
             size="sm"
             variant="outline"
@@ -865,7 +946,10 @@ export default function ReportsPage() {
                 <XAxis dataKey="date" tickFormatter={fmt} />
                 <YAxis />
                 <Tooltip />
-                <Bar dataKey="value" />
+                <Legend />
+                <Bar dataKey="total" name="Total Enquiries" />
+                <Bar dataKey="whatsapp" name="WhatsApp Consent" />
+                <Bar dataKey="call" name="Call Consent" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -873,12 +957,12 @@ export default function ReportsPage() {
             <ResponsiveContainer>
               <PieChart>
                 <Pie
-                  data={enquiryStatusPie}
+                  data={enquiryPie}
                   dataKey="value"
                   nameKey="name"
                   outerRadius={90}
                 >
-                  {enquiryStatusPie.map((_, i) => (
+                  {enquiryPie.map((_, i) => (
                     <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                   ))}
                 </Pie>
@@ -890,7 +974,20 @@ export default function ReportsPage() {
         </CardContent>
       </Card>
 
-      {/* 🔹 Conversions */}
+      {/* 🔹 Enquiries heatmap */}
+      <Card className="print:hidden">
+        <CardHeader>
+          <CardTitle className="text-sm flex items-center gap-2">
+            <CalendarDays className="h-4 w-4" />
+            Quick Enquiry Activity (Last 8 weeks)
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <CalendarHeatmap data={enquiryHeatmapData} />
+        </CardContent>
+      </Card>
+
+      {/* 🔹 Lead Funnel */}
       <Card>
         <CardHeader className="flex justify-between">
           <CardTitle>Lead Funnel</CardTitle>
@@ -941,7 +1038,7 @@ export default function ReportsPage() {
         </CardContent>
       </Card>
 
-      {/* 🔹 Sales */}
+      {/* 🔹 Sales (C3 Units) */}
       <Card>
         <CardHeader className="flex justify-between">
           <CardTitle>Sales (C3 Units)</CardTitle>
@@ -963,7 +1060,7 @@ export default function ReportsPage() {
                 <YAxis />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="units" />
+                <Bar dataKey="units" name="C3 Units" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -988,7 +1085,7 @@ export default function ReportsPage() {
         </CardContent>
       </Card>
 
-      {/* 🔹 Costing */}
+      {/* 🔹 Internal Costing */}
       <Card>
         <CardHeader className="flex justify-between">
           <CardTitle>Internal Costing</CardTitle>
@@ -1009,17 +1106,17 @@ export default function ReportsPage() {
               <YAxis />
               <Tooltip />
               <Legend />
-              <Line type="monotone" dataKey="avgProfit" />
-              <Line type="monotone" dataKey="totalProfit" />
+              <Line type="monotone" dataKey="avgProfit" name="Avg Profit" />
+              <Line type="monotone" dataKey="totalProfit" name="Total Profit" />
             </LineChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
 
-      {/* 🔹 Movement */}
+      {/* 🔹 DSE Movement */}
       <Card>
         <CardHeader className="flex justify-between">
-          <CardTitle className="flex gap-2">
+          <CardTitle className="flex gap-2 items-center">
             <MapIcon className="h-4 w-4" />
             DSE Movement
           </CardTitle>
@@ -1052,12 +1149,12 @@ export default function ReportsPage() {
               <YAxis />
               <Tooltip />
               <Legend />
-              <Line type="monotone" dataKey="pings" />
+              <Line type="monotone" dataKey="pings" name="GPS Pings" />
             </LineChart>
           </ResponsiveContainer>
           {!dseId && (
             <div className="text-xs text-muted-foreground mt-2">
-              Select a DSE above to view movement
+              Select a DSE above to view movement report.
             </div>
           )}
         </CardContent>

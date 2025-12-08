@@ -4,7 +4,7 @@ import axiosInstance from "@/api/axiosInstance";
 const API_URL = import.meta.env.VITE_API_URL as string;
 
 const authHeader = () => {
-   const token =
+  const token =
     localStorage.getItem("admin_token") ||
     localStorage.getItem("dse_token") ||
     localStorage.getItem("token") ||
@@ -51,12 +51,14 @@ type ApiOk<T = any> = { success: boolean; message?: string; data: T };
 /** ------------------------------------------------------------------ */
 export const getEnquiries = async (): Promise<ApiOk<EnquiryDTO[]>> => {
   try {
-    const res = await axiosInstance.get(`${API_URL}/enquiries/list`, {
+    const res = await axiosInstance.get(`${API_URL}/quick-enquiries`, {
       headers: authHeader(),
     });
     return res.data;
   } catch (error: any) {
-    throw error?.response?.data || { message: "Failed to fetch enquiries" };
+    throw (
+      error?.response?.data || { message: "Failed to fetch quick enquiries" }
+    );
   }
 };
 
