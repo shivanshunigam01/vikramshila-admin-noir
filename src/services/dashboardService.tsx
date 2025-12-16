@@ -7,16 +7,29 @@ export const getDashboardStats = async () => {
   try {
     const token = localStorage.getItem("admin_token");
 
-    const res = await axiosInstance.get(`${API_URL}/dashboard/stats`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    // 🔹 Call both APIs in parallel
+    const [businessRes, visitorRes] = await Promise.all([
+      axiosInstance.get(`${API_URL}/dashboard/stats`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+      axiosInstance.get(`${API_URL}/visits/admin/dashboard`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+    ]);
 
-    return res.data; // { success, message, data: {...} }
+    // 🔹 Merge data cleanly
+    return {
+      success: true,
+      data: {
+        ...businessRes.data.data, // products, schemes, enquiries etc.
+        ...visitorRes.data, // todayVisits, totalVisits, uniqueVisitors
+      },
+    };
   } catch (error: any) {
     throw (
-      error.response?.data || { message: "Failed to fetch dashboard stats" }
+      error.response?.data || {
+        message: "Failed to fetch dashboard stats",
+      }
     );
   }
 };

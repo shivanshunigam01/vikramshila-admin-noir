@@ -37,7 +37,8 @@ export default function Dashboard() {
         } else {
           toast({
             title: "Error",
-            description: res.message || "Failed to load dashboard stats",
+            description:
+              (res as any).message || "Failed to load dashboard stats",
             variant: "destructive",
           });
         }
@@ -56,27 +57,30 @@ export default function Dashboard() {
   // Map API data to cards
   const statsCards = stats
     ? [
+        // 🔥 VISITOR ANALYTICS
         {
-          title: "Products",
-          value: stats.products,
-          change: "+12%",
-          changeType: "positive" as const,
-          icon: Package,
+          title: "Today Visitors",
+          value: stats.todayVisits,
+          change: "",
+          changeType: "neutral" as const,
+          icon: Eye,
         },
         {
-          title: "Schemes",
-          value: stats.schemes,
-          change: "+5%",
-          changeType: "positive" as const,
-          icon: Gift,
+          title: "Total Visits",
+          value: stats.totalVisits,
+          change: "",
+          changeType: "neutral" as const,
+          icon: TrendingUp,
         },
         {
-          title: "Services",
-          value: stats.services,
-          change: "0%",
+          title: "Unique Visitors",
+          value: stats.uniqueVisitors,
+          change: "",
           changeType: "neutral" as const,
           icon: Users,
         },
+
+        // 🔹 EXISTING BUSINESS STATS
         {
           title: "Enquiries",
           value: stats.enquiries,
@@ -163,16 +167,20 @@ export default function Dashboard() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{card.value}</div>
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  <TrendingUp
-                    className={`h-3 w-3 ${
-                      card.changeType === "positive"
-                        ? "text-green-500"
-                        : "text-gray-500"
-                    }`}
-                  />
-                  {card.change} from last {timeFilter}
-                </p>
+                {card.change && (
+                  <div className="text-xs text-muted-foreground flex items-center gap-1">
+                    <TrendingUp
+                      className={`h-3 w-3 ${
+                        card.changeType === "positive"
+                          ? "text-green-500"
+                          : "text-gray-500"
+                      }`}
+                    />
+                    <span>
+                      {card.change} from last {timeFilter}
+                    </span>
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))
